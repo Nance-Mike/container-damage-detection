@@ -1,0 +1,333 @@
+% !TEX program = xelatex
+% 论文技术分析报告：基于YOLOv8与极值理论的集装箱破损智能检测模型
+\documentclass[12pt,a4paper]{ctexart}
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+
+\linespread{1.4}
+\emergencystretch=1em
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\zihao{5}\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\ctexset{
+  section = {
+    format = {\zihao{4}\heiti\centering},
+    name = {,、},
+    number = \chinese{section},
+    aftername = {},
+    beforeskip = 20pt,
+    afterskip = 12pt,
+  },
+  subsection = {
+    format = {\zihao{-4}\heiti},
+    name = {,},
+    number = \arabic{section}.\arabic{subsection},
+    aftername = {\hspace{0.5em}},
+    beforeskip = 14pt,
+    afterskip = 8pt,
+  },
+  subsubsection = {
+    format = {\zihao{-4}\heiti},
+    name = {,},
+    number = \arabic{section}.\arabic{subsection}.\arabic{subsubsection},
+    aftername = {\hspace{0.5em}},
+    beforeskip = 10pt,
+    afterskip = 6pt,
+  }
+}
+
+\renewcommand{\thefigure}{\thesection-\arabic{figure}}
+\renewcommand{\thetable}{\thesection-\arabic{table}}
+\renewcommand{\theequation}{\arabic{equation}}
+
+\newtheoremstyle{cumcm}
+  {6pt}{6pt}{}{}{\heiti}{.}{0.5em}{}
+\theoremstyle{cumcm}
+\newtheorem{theorem}{定理}[section]
+\newtheorem{definition}{定义}[section]
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\zihao{-5},
+  keywordstyle=\color{blue}\bfseries,
+  stringstyle=\color{red},
+  commentstyle=\color{green!60!black},
+  frame=single,
+  frameround=tttt,
+  backgroundcolor=\color{gray!10},
+  breaklines=true,
+  showstringspaces=false,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=2
+}
+
+\begin{document}
+
+\begin{center}
+{\zihao{2}\heiti 论文技术分析报告}\\[0.5em]
+{\zihao{4} 基于YOLOv8与极值理论的集装箱破损智能检测模型}
+\end{center}
+
+\vspace{1em}
+
+\noindent\textbf{摘要：}本报告对2026年高教社杯全国大学生数学建模竞赛D题的优秀论文进行技术分析。该论文构建了"检测—分类—评估"一体化的计算机视觉建模框架，依次解决破损有无判别、破损定位与类别识别、模型多维度评估三项任务。报告从模型架构、训练策略、损失函数设计、实验验证与系统评估五个方面展开技术剖析，揭示其创新点与工程价值。
+
+\section{研究背景与问题概述}
+
+\subsection{问题背景}
+
+随着全球贸易的快速发展，集装箱作为国际货物运输的核心载体，在长期装卸、堆叠与运输过程中常产生裂纹、凹陷、穿孔、锈蚀等损伤。传统人工巡检存在效率低、主观性强、环境适应性差等问题，基于计算机视觉的自动检测方法成为研究热点。
+
+\subsection{三项建模任务}
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=2pt]
+\item \textbf{问题一（分类任务）}：判断集装箱图像是否存在任何形式的残损
+\item \textbf{问题二（检测任务）}：定位残损位置并识别残损类别
+\item \textbf{问题三（评估任务）}：从不同维度对所建模型进行评估
+\end{enumerate}
+
+\section{模型架构设计}
+
+\subsection{整体框架}
+
+本文采用"检测—判别"两阶段框架：
+\begin{itemize}
+\item \textbf{检测阶段}：基于YOLOv8的目标检测网络，提取图像中破损的位置、类别与置信度
+\item \textbf{判别阶段}：基于极值理论（EVT）对置信度极值分布建模，实现开放集判别
+\end{itemize}
+
+\subsection{YOLOv8检测模型}
+
+YOLOv8是Ultralytics提出的单阶段目标检测框架，采用anchor-free解耦检测头设计，整体由三部分组成：
+
+\begin{table}[H]
+\centering
+\zihao{5}
+\caption{YOLOv8网络结构组成}
+\begin{tabular}{lll}
+\toprule
+\textbf{组件} & \textbf{结构} & \textbf{功能} \\
+\midrule
+Backbone & Conv + C2f + SPPF & 多尺度特征提取，感受野增强 \\
+Neck & PAN-FPN双向融合 & 自顶向下与自底向上特征融合 \\
+Head & P3/P4/P5解耦头 & anchor-free预测类别与包围框 \\
+后处理 & NMS & 非极大值抑制去重 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{总体训练损失}
+
+YOLOv8的总体训练损失由定位损失、分类损失与分布聚焦损失三部分加权组成：
+\begin{equation}
+\mathcal{L} = \lambda_{\mathrm{box}}\mathcal{L}_{\mathrm{box}}
+            + \lambda_{\mathrm{cls}}\mathcal{L}_{\mathrm{cls}}
+            + \lambda_{\mathrm{dfl}}\mathcal{L}_{\mathrm{dfl}}
+\end{equation}
+
+其中定位损失采用CIoU损失：
+\begin{equation}
+\mathcal{L}_{\mathrm{CIoU}} = 1 - \mathrm{IoU}
++ \frac{\rho^{2}(\bm{b},\bm{b}^{\mathrm{gt}})}{c^{2}} + \alpha v
+\end{equation}
+
+\section{训练策略与改进方法}
+
+\subsection{统一实验设置}
+
+\begin{table}[H]
+\centering
+\zihao{5}
+\caption{实验环境与统一训练超参数}
+\begin{tabular}{llll}
+\toprule
+\textbf{类别} & \textbf{配置} & \textbf{类别} & \textbf{配置} \\
+\midrule
+GPU & RTX 4070 Laptop（8 GB） & 输入尺寸 & $640\times640$ \\
+PyTorch & 2.13 & 批大小 & 16 \\
+Ultralytics & 8.4.110 & 初始学习率 & 0.01 \\
+优化器 & SGD（momentum=0.937） & 学习率衰减 & 余弦退火 \\
+混合精度 & AMP & 随机种子 & 42 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{三组递进对照实验}
+
+\begin{table}[H]
+\centering
+\zihao{5}
+\caption{三组实验配置}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{实验} & \textbf{骨干网络} & \textbf{训练轮数} & \textbf{Copy-Paste} & \textbf{负样本数} \\
+\midrule
+基线 & YOLOv8n（3.01 M） & 100 & 0 & 0 \\
+改进 & YOLOv8s（11.13 M） & 150 & 0.5 & 0 \\
+最终模型 & YOLOv8s（11.13 M） & 150 & 0.5 & 600 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{关键改进策略}
+
+\subsubsection{Copy-Paste数据增强}
+
+针对Hole类样本仅占11.8\%的类别不平衡问题，采用基于实例混合的增强策略。设源图像中实例 $o=(I_o,B_o)$，目标图像为 $I_t$，粘贴变换 $\mathcal{T}$，则生成样本为：
+\begin{equation}
+(I', B') = \bigl(I_t \oplus \mathcal{T}(I_o),\ B_t \cup \mathcal{T}(B_o)\bigr)
+\end{equation}
+
+\subsubsection{负样本参与训练}
+
+从训练图像中不覆盖任何标注框的区域随机裁剪 $320\times320$ 子图，构造600幅负样本并入训练集。检测网络据此学习抑制背景响应，使无缺陷图像的最大置信度整体下移。
+
+\section{损失函数设计}
+
+\subsection{WD-Focal Loss}
+
+在Focal Loss基础上设计基于Wasserstein距离的自适应焦点损失：
+\begin{equation}
+\mathcal{L}_{\mathrm{WD\text{-}FL}}(p_t,c) = -\alpha_c (1-p_t)^{\gamma}\log p_t
+\end{equation}
+其中类别平衡系数由Wasserstein距离动态调制：
+\begin{equation}
+\alpha_c = \sigma\!\left(\frac{W_1(\mu_c,\bar{\mu})}{\tau}\right)
+\end{equation}
+
+\subsection{Rusty类加权}
+
+采用BCE损失，基于类别频率比设置pos\_weight：
+\begin{equation}
+\mathrm{pos\_weight} = [1.0,\ 1.0,\ 3934/3158] \approx [1.0,\ 1.0,\ 1.246]
+\end{equation}
+
+\section{实验结果与分析}
+
+\subsection{三组实验对比}
+
+\begin{table}[H]
+\centering
+\zihao{5}
+\caption{三组实验验证集最优检测指标对比}
+\begin{tabular}{lcc}
+\toprule
+\textbf{实验} & \textbf{mAP@0.5} & \textbf{mAP@0.5:0.95} \\
+\midrule
+基线（YOLOv8n） & 0.395 & 0.190 \\
+改进（YOLOv8s + CP） & 0.413 & 0.212 \\
+最终模型（+负样本） & 0.405 & 0.205 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{逐类检测性能}
+
+\begin{table}[H]
+\centering
+\zihao{5}
+\caption{最终模型验证集逐类检测性能}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{类别} & \textbf{Precision} & \textbf{Recall} & \textbf{mAP@0.5} & \textbf{mAP@0.5:0.95} & \textbf{F1} \\
+\midrule
+Dent（凹陷） & 0.628 & 0.518 & 0.517 & 0.295 & 0.568 \\
+Hole（破洞） & 0.621 & 0.407 & 0.400 & 0.190 & 0.492 \\
+Rusty（锈蚀） & 0.471 & 0.282 & 0.293 & 0.129 & 0.353 \\
+\midrule
+全部 & 0.573 & 0.402 & 0.403 & 0.204 & — \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{消融实验结论}
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=2pt]
+\item 骨干升级（YOLOv8n$\to$YOLOv8s）带来mAP@0.5:0.95约0.022的提升
+\item Copy-Paste在本数据集（仅目标框标注）上未产生可观测增益，提升主要来自骨干容量升级
+\item 负样本训练使纯正样本验证集mAP小幅下降约0.007，但显著改善EVT判别效果
+\end{enumerate}
+
+\section{鲁棒性与效率评估}
+
+\subsection{鲁棒性量化测试}
+
+\begin{table}[H]
+\centering
+\zihao{5}
+\caption{最终模型在扰动验证集上的鲁棒性结果（494幅）}
+\begin{tabular}{lcc}
+\toprule
+\textbf{扰动类型} & \textbf{mAP@0.5} & \textbf{mAP@0.5:0.95} \\
+\midrule
+无扰动（基线） & 0.403 & 0.204 \\
+高斯噪声 $\sigma=10$ & 0.223 & 0.086 \\
+高斯噪声 $\sigma=25$ & 0.077 & 0.023 \\
+高斯噪声 $\sigma=50$ & 0.015 & 0.004 \\
+亮度 $+30$ & 0.398 & 0.200 \\
+亮度 $-30$ & 0.386 & 0.190 \\
+高斯模糊 $3\times3$ & 0.414 & 0.204 \\
+高斯模糊 $7\times7$ & 0.337 & 0.158 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{推理效率}
+
+\begin{table}[H]
+\centering
+\zihao{5}
+\caption{模型效率对比（640$\times$640，RTX 4070 Laptop GPU）}
+\begin{tabular}{lccc}
+\toprule
+\textbf{模型} & \textbf{参数量} & \textbf{计算量} & \textbf{端到端推理} \\
+\midrule
+基线（YOLOv8n） & 3.01 M & 8.2 GFLOPs & 8.95 ms（112 FPS） \\
+最终模型（YOLOv8s） & 11.13 M & 28.4 GFLOPs & 8.87 ms（113 FPS） \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{技术优势与不足}
+
+\subsection{主要优势}
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=2pt]
+\item \textbf{创新性强}：EVT在计算机视觉中的应用新颖独特，解决开放集检测难题
+\item \textbf{理论扎实}：数学基础深厚，推导严谨，阈值设定有统计依据
+\item \textbf{效果显著}：在复杂港口场景下达到实用水平，113 FPS满足实时需求
+\item \textbf{完整度高}：从问题分析到模型部署全流程覆盖
+\item \textbf{实验严谨}：三组对照实验与六维度评估体系完整客观
+\end{enumerate}
+
+\subsection{存在不足}
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=2pt]
+\item WD-Focal Loss端到端效果不理想，需重新配平损失尺度
+\item 对高斯噪声敏感，$\sigma=50$时mAP降至0.004
+\item Rusty类召回率仅0.282，是整体性能主要短板
+\item 伪负样本可能未完全代表真实"无缺陷"集装箱
+\end{enumerate}
+
+\section{总结}
+
+该论文是数学建模竞赛的典范之作，体现了作者团队扎实的数学功底、深厚的机器学习造诣和优秀的工程实践能力。其将极值理论引入计算机视觉的创新思路，不仅为竞赛提供了优秀解决方案，更为工业检测领域的开放集问题提供了全新思路，具有实际应用价值与学术参考意义。
+
+\end{document}
