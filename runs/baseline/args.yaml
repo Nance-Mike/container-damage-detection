@@ -1,0 +1,131 @@
+# YOLOv8n 集装箱缺陷检测训练参数快照（runs/baseline）
+# 任务/模式
+task: detect            # 任务类型：目标检测
+mode: train             # 运行模式：训练
+model: yolov8n.pt       # 使用的模型/预训练权重：YOLOv8 nano
+# 数据
+data: c:\Users\administrator\Desktop\2026数模国赛\选题D\data\processed\data.yaml  # 数据集配置文件路径
+epochs: 100             # 最大训练轮数
+time: null              # 训练时长限制（小时），null 表示不限
+patience: 20            # 早停：验证集连续 20 轮无提升则停止
+batch: 16               # 每批次样本数（batch size）
+imgsz: 640              # 输入图像尺寸（宽高均 resize 到 640）
+# 保存/日志
+save: true              # 保存训练好的权重
+save_period: -1         # 每隔 N 轮保存一次检查点，-1 表示不额外保存
+cache: false            # 是否缓存数据集到内存/磁盘
+device: '0'             # 训练设备：GPU 0
+workers: 8              # 数据加载线程数
+project: c:\Users\administrator\Desktop\2026数模国赛\选题D\runs  # 结果输出根目录
+name: baseline          # 实验名，结果保存到 runs/baseline
+exist_ok: true          # 若目录已存在则覆盖，不报错
+# 训练策略
+pretrained: true        # 使用预训练权重初始化
+cls_remap: true         # 训练时对类别进行重映射（处理类别缺失/重排）
+optimizer: auto         # 优化器自动选择（AdamW 或 SGD）
+verbose: true           # 打印详细训练信息
+seed: 42                # 随机种子，保证可复现
+deterministic: true     # 使用确定性算法（可复现，略微降低性能）
+single_cls: false       # 是否当作单类别训练
+rect: false             # 是否使用矩形训练（按比例动态调整宽高）
+cos_lr: true            # 使用余弦退火学习率调度
+close_mosaic: 10        # 最后 10 轮关闭 mosaic 数据增强
+resume: false           # 是否从上次中断处恢复训练
+amp: true               # 使用混合精度训练（加速、省显存）
+fraction: 1.0           # 使用数据集的比例（1.0=全部）
+profile: false          # 是否开启性能分析
+freeze: null            # 冻结指定层数/层名，null 表示不冻结
+multi_scale: 0.0        # 多尺度训练（0.5~1.5 随机缩放），0 表示关闭
+compile: false          # 是否编译模型以加速
+channels_last: false    # 是否使用 channels_last 内存布局
+overlap_mask: true      # 分割任务掩码是否重叠（检测任务无影响）
+mask_ratio: 4           # 分割掩码降采样比例（检测任务无影响）
+dropout: 0.0            # 全连接层随机失活比例
+# 验证/推理
+val: true               # 每轮结束后在验证集上评估
+split: val              # 使用的验证集划分名
+save_json: false        # 是否将预测结果保存为 JSON
+conf: null              # 推理置信度阈值，null 采用模型默认
+iou: 0.7                # NMS 的 IoU 阈值
+max_det: 300            # 每张图最多输出检测框数
+# 导出/部署
+quantize: null          # 量化方式（如 int8），null 表示不量化
+dnn: false              # 是否用 OpenCV DNN 推理
+plots: true             # 生成训练曲线等可视化图
+end2end: null           # 是否导出端到端模型
+# 推理输入
+source: null            # 推理数据源（图像/视频路径），训练时无
+vid_stride: 1           # 视频抽帧步长（每 N 帧取一帧）
+stream_buffer: false    # 视频流是否缓冲
+visualize: false        # 是否可视化特征图
+augment: true           # 推理时是否使用 TTA 测试时增强
+agnostic_nms: false     # NMS 是否跨类别去重（类别无关）
+classes: null           # 只保留指定类别，null 表示全部
+retina_masks: false     # 分割任务高分辨率掩码（检测无影响）
+# 推理输出
+embed: null             # 是否输出特征嵌入向量
+show: false             # 是否实时显示结果窗口
+save_frames: false      # 是否保存视频每一帧
+save_txt: false         # 是否保存 txt 标注结果
+save_conf: false        # 保存 txt 时是否含置信度
+save_crop: false        # 是否保存裁剪的检测目标图
+show_labels: true       # 可视化时显示类别标签
+show_conf: true         # 可视化时显示置信度
+show_boxes: true        # 可视化时显示检测框
+line_width: null        # 可视化框线宽，null 为自动
+# 导出格式
+format: torchscript     # 导出的模型格式
+keras: false            # 是否导出为 Keras 格式
+optimize: false         # 导出时是否优化（INT8）
+dynamic: false          # 导出时是否支持动态尺寸
+simplify: true          # 导出 ONNX 时是否简化图
+opset: null             # ONNX opset 版本，null 为默认
+workspace: null         # ONNX 导出工作空间大小
+nms: false              # 导出时是否内嵌 NMS
+# 优化器超参数
+lr0: 0.01               # 初始学习率
+lrf: 0.01               # 最终学习率 = lr0 * lrf
+momentum: 0.937         # SGD/Adam 动量
+weight_decay: 0.0005    # 权重衰减（L2 正则化）
+warmup_epochs: 3.0      # 学习率预热轮数
+warmup_momentum: 0.8    # 预热期间的动量
+warmup_bias_lr: 0.1     # 预热期间偏置的学习率
+# 蒸馏
+distill_model: null     # 教师模型路径，null 表示不蒸馏
+dis: 6.0                # 蒸馏蒸馏优化参数
+# 损失权重
+box: 7.5                # 边界框回归损失权重
+cls: 0.5                # 分类损失权重
+cls_pw: 0.0             # 分类样本权重
+dfl: 1.5                # DFL（分布焦点）损失权重
+pose: 12.0              # 姿态损失权重（检测无影响）
+kobj: 1.0               # 关键点目标损失权重（检测无影响）
+rle: 1.0                # RLE 掩码损失权重（检测无影响）
+angle: 1.0              # 旋转框角度损失权重（检测无影响）
+dlog: 1.0               # 蒸馏边界框损失权重
+dgrad: 0.5              # 蒸馏梯度损失权重
+dlam: 1.0               # 蒸馏 EMB 损失权重
+nbs: 64                 # 损失归一化基准 batch size
+# 数据增强
+hsv_h: 0.015            # 色调 HSV 增强幅度
+hsv_s: 0.7              # 饱和度 HSV 增强幅度
+hsv_v: 0.4              # 明度 HSV 增强幅度
+degrees: 0.0            # 随机旋转角度（度）
+translate: 0.1          # 随机平移比例
+scale: 0.5              # 随机缩放比例
+shear: 0.0              # 随机剪切角度（度）
+perspective: 0.0        # 随机透视变换幅度
+flipud: 0.0             # 垂直翻转概率
+fliplr: 0.5             # 水平翻转概率
+bgr: 0.0                # 通道置换（BGR<->RGB）概率
+mosaic: 1.0             # mosaic 拼接增强概率
+mixup: 0.0              # mixup 增强概率
+cutmix: 0.0             # cutmix 增强概率
+copy_paste: 0.0         # copy-paste 增强概率
+copy_paste_mode: flip   # copy-paste 模式：flip 翻转
+auto_augment: randaugment  # 自动增强策略（randaugment）
+erasing: 0.4            # 随机擦除增强概率
+# 其他
+cfg: null               # 自定义模型配置文件，null 用默认
+tracker: tracktrack.yaml  # 跟踪器配置文件（训练无影响）
+save_dir: C:\Users\administrator\Desktop\2026数模国赛\选题D\runs\baseline  # 结果保存路径
