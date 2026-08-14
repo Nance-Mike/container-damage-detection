@@ -1,0 +1,39 @@
+\section{符号说明}
+
+本文使用的主要符号及其含义如表 \ref{tab:symbols} 所示。除特别说明外，坐标均为归一化坐标，取值范围为 $[0,1]$。
+
+\begin{longtable}{@{}p{3.2cm}p{11.5cm}@{}}
+  \caption{主要符号说明}\label{tab:symbols}\\
+  \toprule
+  \zihao{5}\heiti 符号 & \zihao{5}\heiti 含义 \\
+  \midrule
+  \endfirsthead
+  \toprule
+  \zihao{5}\heiti 符号 & \zihao{5}\heiti 含义 \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  $\mathcal{X}$ & 图像集合，$\mathcal{X}=\{x_1,x_2,\ldots,x_N\}$ \\
+  $N$ & 图像数量 \\
+  $c_{i,j}$ & 第 $i$ 幅图像中第 $j$ 个候选检测框的置信度 \\
+  $m_i$ & 第 $i$ 幅图像中的候选检测框数量 \\
+  $s_i$ & 第 $i$ 幅图像的最大检测置信度，$s_i=\max_j c_{i,j}$ \\
+  $k$ & Weibull 分布的形状参数 \\
+  $\lambda$ & Weibull 分布的尺度参数 \\
+  $F(\cdot)$ & Weibull 分布的累积分布函数 \\
+  $P_{\mathrm{defect}}(x)$ & 图像 $x$ 的缺陷概率 \\
+  $\tau$ & 分类判别阈值，$\tau^{*}$ 为最优阈值 \\
+  $y_i,\ \hat{y}_i$ & 第 $i$ 幅图像的真实标签与预测标签（1 表示有缺陷，0 表示无缺陷） \\
+  $\mathrm{IoU}$ & 预测框与真实框的交并比 \\
+  $\mathrm{TP, FP, FN, TN}$ & 真正例、假正例、假负例、真负例数量 \\
+  $P,\ R,\ F_1$ & 精确率、召回率、F1 分数 \\
+  $\mathrm{AP}$ & 平均精确率（Average Precision） \\
+  $\mathrm{mAP}$ & 各类别 AP 的均值 \\
+  $\mathcal{L}_{\mathrm{box}},\ \mathcal{L}_{\mathrm{cls}},\ \mathcal{L}_{\mathrm{dfl}}$ & 检测损失的定位、分类与分布聚焦损失分量 \\
+  $\alpha_c$ & 类别 $c$ 的损失平衡系数 \\
+  $\gamma$ & Focal Loss 聚焦参数 \\
+  $W_1(\mu,\nu)$ & 概率分布 $\mu$ 与 $\nu$ 之间的 1-Wasserstein 距离 \\
+  $\mu_c$ & 类别 $c$ 在特征空间中的经验分布 \\
+  $C$ & 缺陷类别集合，$C=\{0,1,2\}$ 分别对应 Dent、Hole、Rusty \\
+\end{longtable}

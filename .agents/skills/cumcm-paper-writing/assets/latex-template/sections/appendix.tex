@@ -1,0 +1,20 @@
+% ==================== 附录 ====================
+\renewcommand{\thesection}{\Alph{section}}
+\ctexset{
+  section = {
+    name = {附录,},
+    number = \Alph{section},
+    aftername = {\quad},
+  },
+  subsection = {
+    number = \thesection.\arabic{subsection},
+  },
+}
+
+\clearpage
+
+\section{主要源程序}
+% TODO: 说明运行环境与脚本职责；每个脚本一个 \subsection + \lstinputlisting{code/xxx.py}
+
+\section{公式推导补充}
+% TODO: 正文公式的详细推导、定理证明

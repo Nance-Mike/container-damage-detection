@@ -1,0 +1,126 @@
+% ==================== 附录 ====================
+\renewcommand{\thesection}{\Alph{section}}
+\ctexset{
+  section = {
+    name = {附录,},
+    number = \Alph{section},
+    aftername = {\quad},
+  },
+  subsection = {
+    number = \thesection.\arabic{subsection},
+  },
+}
+
+\section{主要源程序}
+
+本论文使用的全部源程序如下，运行环境为 Python 3.13 + PyTorch 2.13 + Ultralytics 8.4.110。其中 \texttt{preprocess.py}、\texttt{train\_yolo.py}、\texttt{evt\_classifier.py} 分别对应数据预处理、模型训练推理与问题一判别，其结果直接支撑正文；\texttt{eda.py} 用于探索性分析；\texttt{wd\_focal\_loss.py} 为附录 C 所述 WD-Focal Loss 的实现；\texttt{evaluate.py} 为多维度评估工具框架；\texttt{build\_neg\_variants.py}、\texttt{eval\_model.py}、\texttt{robustness\_eval.py}、\texttt{run\_evt\_probe.py} 分别为负样本比例实验的数据集构造、模型独立评估、鲁棒性扰动测试与 EVT 伪负样本校准脚本。
+
+\subsection{数据预处理与负样本构造（preprocess.py）}
+\lstinputlisting{code/preprocess.py}
+
+\subsection{模型训练与推理（train\_yolo.py）}
+\lstinputlisting{code/train_yolo.py}
+
+\subsection{EVT 缺陷判别（evt\_classifier.py）}
+\lstinputlisting{code/evt_classifier.py}
+
+\subsection{WD-Focal Loss 实现（wd\_focal\_loss.py）}
+\lstinputlisting{code/wd_focal_loss.py}
+
+\subsection{多维度评估框架（evaluate.py）}
+\lstinputlisting{code/evaluate.py}
+
+\subsection{探索性分析（eda.py）}
+\lstinputlisting{code/eda.py}
+
+\subsection{负样本比例实验数据集构造（build\_neg\_variants.py）}
+\lstinputlisting{code/build_neg_variants.py}
+
+\subsection{模型独立评估（eval\_model.py）}
+\lstinputlisting{code/eval_model.py}
+
+\subsection{鲁棒性扰动测试（robustness\_eval.py）}
+\lstinputlisting{code/robustness_eval.py}
+
+\subsection{EVT 伪负样本判别校准（run\_evt\_probe.py）}
+\lstinputlisting{code/run_evt_probe.py}
+
+\section{极值理论判别的推导补充}
+
+\subsection{Weibull 分布极大似然估计}
+
+由正文式 \eqref{eq:loglik}，对数似然对 $k$ 与 $\lambda$ 的偏导为
+\begin{equation}
+  \frac{\partial \ell}{\partial \lambda}
+  = -\frac{Nk}{\lambda} + \frac{k}{\lambda^{k+1}}\sum_{i=1}^{N}s_i^{k},
+  \qquad
+  \frac{\partial \ell}{\partial k}
+  = \frac{N}{k} - N\ln\lambda + \sum_{i=1}^{N}\ln s_i
+  - \sum_{i=1}^{N}\left(\frac{s_i}{\lambda}\right)^{k}\ln\frac{s_i}{\lambda}.
+  \label{eq:score}
+\end{equation}
+令 $\partial\ell/\partial\lambda=0$ 即得式 \eqref{eq:lambda_hat} 的闭式解；将其代入第二式可得仅含 $k$ 的非线性方程，采用 Newton--Raphson 迭代求解。当样本量 $N$ 较大时，极大似然估计满足渐近正态性，参数的协方差可由观测 Fisher 信息矩阵估计。
+
+\subsection{等价置信度阈值的推导}
+
+由式 \eqref{eq:defect_prob} 与 \eqref{eq:class_rule}，判别条件 $P_{\mathrm{defect}}(x)\ge\tau$ 等价于
+\begin{equation}
+  1-\exp\!\left[-\left(\frac{s_x}{\hat{\lambda}}\right)^{\hat{k}}\right] \ge \tau
+  \;\Longleftrightarrow\;
+  s_x \ge \hat{\lambda}\left[-\ln(1-\tau)\right]^{1/\hat{k}} =: s^{*},
+  \label{eq:equiv_derive}
+\end{equation}
+即概率阈值与置信度阈值之间存在单调等价关系，本文据此实现问题一与问题二结果口径的一致性对照。
+
+\subsection{启发式阈值的统计解释}
+
+当验证集全部为正样本时，无法直接估计假阳性率。取验证集缺陷概率的第 5 百分位 $Q_{5\%}$ 作为阈值，等价于要求判别器在含缺陷图像上保持至少 95\% 的通过率（召回优先）；设置下界 0.1 则保证阈值不因数值病态而趋近于零。该策略在无负样本场景下提供了保守且可解释的阈值选择。
+
+\section{WD-Focal Loss 推导补充}
+
+\subsection{类别特征分布与 Wasserstein 距离}
+
+设检测网络倒数第二层输出 $d$ 维特征 $\bm{f}\in\mathbb{R}^{d}$，类别 $c$ 的经验特征分布为
+\begin{equation}
+  \mu_c = \frac{1}{n_c}\sum_{i=1}^{n_c}\delta_{\bm{f}_i^{(c)}},
+  \label{eq:emp_dist}
+\end{equation}
+其中 $\delta_{\bm{f}}$ 为 Dirac 测度。1-Wasserstein 距离定义为
+\begin{equation}
+  W_1(\mu,\nu) = \inf_{\pi\in\Pi(\mu,\nu)}
+  \int_{\mathcal{X}\times\mathcal{X}} d(\bm{x},\bm{y})\,\mathrm{d}\pi(\bm{x},\bm{y}),
+  \label{eq:w1}
+\end{equation}
+其中 $\Pi(\mu,\nu)$ 为以 $\mu,\nu$ 为边际的传输计划集合。对一维投影数据，$W_1$ 有分位数闭式近似
+\begin{equation}
+  \hat{W}_1(\hat{\mu},\hat{\nu}) = \frac{1}{K}\sum_{k=1}^{K}
+  \left|Q_{\hat{\mu}}\!\left(\frac{k}{K}\right) - Q_{\hat{\nu}}\!\left(\frac{k}{K}\right)\right|,
+  \label{eq:w1_quantile}
+\end{equation}
+其中 $Q_{\cdot}(q)$ 为分位数函数，$K=100$ 为网格点数。
+
+\subsection{动态类别平衡系数}
+
+以各类别分布与全局混合分布 $\bar{\mu}=\frac{1}{|C|}\sum_{c}\mu_c$ 的 Wasserstein 距离 $d_c = W_1(\mu_c,\bar{\mu})$ 度量类别偏离度，并通过 sigmoid 映射为动态平衡系数
+\begin{equation}
+  \alpha_c = \sigma\!\left(\frac{d_c}{\tau}\right)
+  = \frac{1}{1+\exp(-d_c/\tau)},
+  \label{eq:alpha}
+\end{equation}
+其中温度 $\tau$ 取所有 $d_c$ 的中位数。当 $\tau\to\infty$ 时 $\alpha_c\to0.5$，WD-Focal Loss 退化为固定权重的标准 Focal Loss，因此后者是前者的特例。
+
+\subsection{统一损失公式与实现}
+
+WD-Focal Loss 的统一形式为
+\begin{equation}
+  \mathcal{L}_{\mathrm{WD\text{-}FL}}(p_t,c)
+  = -\alpha_c\,(1-p_t)^{\gamma}\,\log p_t,
+  \label{eq:wd_full}
+\end{equation}
+实现中每隔 $T=10$ 个 epoch 依据特征缓存更新一次 $\{\alpha_c\}$，Wasserstein 距离计算仅需 $O(n_c\log n_c)$ 的排序开销，相对训练主循环可忽略。完整实现见 \texttt{code/wd\_focal\_loss.py}，植入 Ultralytics 的接口为 \texttt{patch\_v8\_detection\_loss}。
+
+\subsection{工程实现取舍与端到端验证结果}
+
+在 Ultralytics 8.4.110 的训练框架中，检测头的逐框特征不易直接获取，本文采用工程取舍：以训练阶段正样本的检测置信度 $p_t$ 分布代替附录推导中的深层特征分布，在 WD-Focal 前向计算内以 \texttt{no\_grad} 收集每类正样本 $p_t$，每 $T=10$ 个 epoch 用一维分位数近似更新 $\alpha_c$；该版本与推导版在数学结构上一致（同为分布间 1-Wasserstein 距离驱动的类别平衡），仅更换了分布载体。
+
+端到端训练暴露了两个必须处理的实现问题：其一，训练中在模型对象上执行额外推理会污染训练图状态并导致第 11 轮反向传播崩溃，故改为前向内无梯度收集；其二，$\alpha_c$ 无上限时，训练后期各类 $W_1$ 距离相对自适应温度增大，$\alpha_c$ 经 sigmoid 饱和至约 1，负样本权重 $(1-\alpha_c)$ 归零，模型在第 60$\sim$70 轮崩塌，故对 $\alpha_c$ 施加 $[0.25,0.75]$ 限幅。限幅版完整训练 150 轮后验证集 mAP@0.5:0.95 为 0.103（基线 0.205），且 Hole/Dent 的 mAP@0.5:0.95 比值由 0.64 升至 1.15，表明 Wasserstein 加权确实偏向少数类 Hole，但整体负效应说明聚焦损失在检测框架中的损失尺度需要重新配平，该方向作为后续工作保留。

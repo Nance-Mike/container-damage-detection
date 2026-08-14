@@ -1,0 +1,72 @@
+\section{问题分析}
+
+\subsection{问题一的分析}
+
+问题一本质上是图像级二分类问题，即判断每幅集装箱图像是否含有缺陷。其建模存在一个显著的数据障碍：训练集中所有图像均含有缺陷，不存在“无缺陷”的负样本，因此无法按照常规流程直接监督训练一个二分类网络。若仅依靠检测模型的输出（图片中是否有检测框）进行判别，又会因背景误检而引入大量假阳性。
+
+针对上述困难，本文提出“检测—判别”两阶段思路：第一阶段利用目标检测网络对图像进行推理，将网络的输出（检测框置信度）作为中间统计量；第二阶段对置信度的极值分布进行概率建模，将连续置信度映射为缺陷概率，从而实现开放集（open-set）意义上的二分类。由于检测网络在无缺陷图像上要么不输出检测框，要么仅输出低置信度误检，而有缺陷图像通常至少存在一个高置信度检测，二者在“最大检测置信度”这一统计量上呈现可分性。依据 Fisher--Tippett--Gnedenko 定理，有界随机变量的块极大值服从 Weibull 型极限分布，据此可对置信度极值分布进行严格建模并确定最优判别阈值。
+
+\subsection{问题二的分析}
+
+问题二要求对缺陷进行定位并识别类别，属于典型的多类别目标检测任务。结合工业实时巡检的应用场景，模型需要在保证精度的同时具备较高的推理速度，因此本文选择单阶段检测器 YOLOv8 作为基础框架。
+
+数据层面的主要挑战有三点：其一，Hole（破洞）类标注仅占总标注的 11.8\%，类别不平衡会导致少数类检测性能显著下降；其二，小目标（面积小于 $32\times32$ 像素）占比约 17.0\%，需要模型具备多尺度特征提取能力；其三，图像背景复杂、光照变化剧烈，需要针对性的数据增强提升泛化能力。本文相应采取三项措施：以预训练权重迁移学习降低训练难度；采用 Copy-Paste 增强与 HSV 扰动、Mosaic 等组合增强策略；从训练图像的无标注区域裁剪构造负样本并参与训练，在抑制背景误检的同时为问题一的判别模型提供统计基础。
+
+\subsection{问题三的分析}
+
+问题三要求从不同维度评估问题一、问题二中建立的模型。结合竞赛评阅与工业应用的双重视角，本文建立六维度评估框架：
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=2pt]
+  \item {\heiti 检测精度：}以 mAP@0.5、mAP@0.5:0.95、Precision、Recall 等指标量化定位与分类能力；
+  \item {\heiti 分类性能：}以缺陷概率分布、判别阈值与分类统计评估问题一模型的判别能力；
+  \item {\heiti 消融实验：}通过三组对照实验验证各改进策略的贡献；
+  \item {\heiti 鲁棒性：}分析模型对光照、阴影、污渍、尺度变化等干扰的抵抗能力；
+  \item {\heiti 推理效率：}从参数量、推理耗时与 FPS 评估实时性；
+  \item {\heiti 错误分析：}对典型误检与漏检案例进行归因，为模型优化提供依据。
+\end{enumerate}
+
+\subsection{总体技术路线}
+
+本文的总体技术路线如图 \ref{fig:route} 所示。数据经划分、负样本构造与增强后训练 YOLOv8 检测模型；检测模型同时服务于问题二（输出定位与类别）与问题一（提供最大置信度统计量，经 EVT 建模完成二分类）；最终以多维度评估框架对模型进行综合评判。
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners=2pt, minimum width=2.45cm, minimum height=1.0cm,
+              align=center, font=\zihao{-5}},
+  arr/.style={-{Stealth[length=2.5mm]}, thick},
+  every node/.style={font=\zihao{-5}}
+]
+  \node[box] (d1) {原始数据集\\3713 张图像};
+  \node[box, right=0.6cm of d1] (d2) {分层抽样划分\\训练 2806 + 验证 494};
+  \node[box, right=0.6cm of d2] (d3) {负样本构造\\600 张无破损图像};
+  \node[box, right=0.6cm of d3] (d4) {数据增强\\HSV/Mosaic/Copy-Paste};
+  \node[box, right=0.6cm of d4] (m1) {YOLOv8s\\检测模型};
+
+  \node[box, below=1.0cm of m1] (t1) {测试集 413 张};
+  \node[box, below=1.0cm of d1] (r1) {test\_result.csv\\定位与类别};
+  \node[box, below=1.0cm of r1] (r2) {最大置信度 $s_i$};
+  \node[box, below=1.0cm of r2] (r3) {Weibull 拟合};
+  \node[box, below=1.0cm of r3] (r4) {缺陷概率 $P_{\mathrm{defect}}$};
+  \node[box, below=1.0cm of r4] (r5) {二分类判别结果};
+
+  \node[box, below=1.0cm of d4] (e1) {多维度评估};
+
+  \draw[arr] (d1) -- (d2);
+  \draw[arr] (d2) -- (d3);
+  \draw[arr] (d3) -- (d4);
+  \draw[arr] (d4) -- (m1);
+  \draw[arr] (t1) -- (m1);
+  \draw[arr] (m1) -- (r1);
+  \draw[arr] (m1) -- (t1);
+  \draw[arr] (r1) -- (r2);
+  \draw[arr] (r2) -- (r3);
+  \draw[arr] (r3) -- (r4);
+  \draw[arr] (r4) -- (r5);
+  \draw[arr] (t1) -- (e1);
+  \draw[arr] (m1) -- (e1);
+\end{tikzpicture}}
+\caption{总体技术路线图}
+\label{fig:route}
+\end{figure}

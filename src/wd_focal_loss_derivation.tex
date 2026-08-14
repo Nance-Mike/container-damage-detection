@@ -1,0 +1,229 @@
+% WD-Focal Loss 完整数学推导
+% 基于 Wasserstein 距离的自适应焦点损失函数
+% 编译命令: xelatex wd_focal_loss_derivation.tex
+
+\documentclass[12pt, a4paper]{ctexart}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{bm}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\newtheorem{definition}{定义}[section]
+\newtheorem{theorem}{定理}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{proposition}{命题}[section]
+\newtheorem{remark}{注记}[section]
+
+\title{\textbf{基于 Wasserstein 距离的自适应焦点损失函数 (WD-Focal Loss) \\ 数学推导}}
+\author{2026 数学建模国赛 · 选题 D}
+\date{}
+
+\begin{document}
+\maketitle
+
+% ========================================================================
+\section{符号系统与特征空间假设}
+% ========================================================================
+
+\begin{definition}[特征空间与类别分布]
+令 $\mathcal{F} \subseteq \mathbb{R}^d$ 为检测模型倒数第二层输出的 $d$ 维特征空间。
+类别集合 $\mathcal{C} = \{0, 1, 2\}$ 分别对应 Dent（凹陷）、Hole（破洞）、Rusty（锈蚀）。
+对于每个类别 $c \in \mathcal{C}$，定义其在特征空间中的经验分布为 $\mu_c$，
+由训练集中属于类别 $c$ 的所有检测目标的特征向量诱导：
+\begin{equation}
+    \mu_c = \frac{1}{n_c} \sum_{i=1}^{n_c} \delta_{\bm{f}_i^{(c)}}
+\end{equation}
+其中 $n_c$ 为类别 $c$ 的样本数量，$\delta_{\bm{f}}$ 为以 $\bm{f}$ 为中心的 Dirac 测度，
+$\bm{f}_i^{(c)} \in \mathcal{F}$ 为第 $i$ 个属于类别 $c$ 的样本的特征表示。
+\end{definition}
+
+\begin{remark}[数据集类别不平衡的量化]
+由 EDA 实测数据可知：
+\begin{equation}
+    n_0 = 3934, \quad n_1 = 946, \quad n_2 = 3158
+\end{equation}
+类别比例 $n_0 : n_1 : n_2 \approx 4.16 : 1 : 3.34$，
+Hole 类（$c=1$）样本量仅为 Dent 类的 $24.04\%$，构成典型的长尾分布。
+\end{remark}
+
+% ========================================================================
+\section{传统 Focal Loss 在长尾分布下的数学缺陷}
+% ========================================================================
+
+\begin{definition}[标准 Focal Loss]
+对于预测概率 $p_t \in (0,1)$（正确类别的预测概率），标准 Focal Loss 定义为：
+\begin{equation}
+    \mathrm{FL}(p_t) = -\alpha_t (1 - p_t)^{\gamma} \log(p_t)
+    \label{eq:focal_loss}
+\end{equation}
+其中 $\gamma \geq 0$ 为聚焦参数，$\alpha_t \in (0,1)$ 为类别平衡因子。
+在标准实现中，$\alpha_t$ 通常被设为固定常数（如 $\alpha_t = 0.25$）。
+\end{definition}
+
+\begin{proposition}[固定 $\alpha$ 的梯度饥饿现象]
+\label{prop:gradient_starvation}
+考虑类别 $c$ 的单样本梯度期望。在训练过程中，第 $c$ 类的期望梯度贡献为：
+\begin{equation}
+    \mathbb{E}\left[\frac{\partial \mathcal{L}}{\partial \theta}\bigg|_{c}\right]
+    = \frac{n_c}{N} \cdot \alpha_c \cdot \mathbb{E}_{p_t \sim \mathcal{P}_c}
+    \left[(1 - p_t)^{\gamma} \cdot g(p_t, \theta)\right]
+    \label{eq:expected_gradient}
+\end{equation}
+其中 $N = \sum_{c} n_c$ 为总样本数，$g(p_t, \theta) = \frac{\partial}{\partial \theta}[-\log(p_t)]$
+为交叉熵的参数梯度。
+\end{proposition}
+
+\begin{proof}[缺陷证明]
+当 $\alpha_c$ 为固定常数时，各类别梯度贡献的比值为：
+\begin{equation}
+    \frac{\mathbb{E}[\nabla_\theta \mathcal{L}|_{c=1}]}
+         {\mathbb{E}[\nabla_\theta \mathcal{L}|_{c=0}]}
+    = \frac{n_1}{n_0} \cdot \frac{\alpha_1}{\alpha_0} \cdot R_{\gamma}
+\end{equation}
+其中 $R_{\gamma}$ 为调制因子比值。
+
+代入实测数据 $n_1 / n_0 = 946 / 3934 \approx 0.240$，
+若 $\alpha_1 = \alpha_0$（固定 $\alpha$），则 Hole 类的梯度贡献仅为 Dent 类的约 $24\%$。
+即使 $\gamma > 0$ 的调制因子对难分类样本赋予更高权重，
+当两个类别的 $p_t$ 分布相似时，$R_{\gamma} \approx 1$，
+梯度饥饿仍然严重存在。
+
+更关键的是，当 Hole 与 Rusty 在特征空间中高度混淆时，
+模型倾向于将 Hole 错分为 Rusty（因为后者样本更多，梯度更强），
+导致 Hole 类的 $p_t$ 系统性偏低，形成恶性循环。 \qed
+\end{proof}
+
+% ========================================================================
+\section{Wasserstein 距离的离散化表达}
+% ========================================================================
+
+\begin{definition}[1-Wasserstein 距离]
+给定概率测度空间 $(\mathcal{X}, d)$ 上的两个概率分布 $\mu, \nu$，
+其 1-Wasserstein 距离（Earth Mover's Distance）由 Kantorovich 对偶问题定义为：
+\begin{equation}
+    W_1(\mu, \nu) = \inf_{\pi \in \Pi(\mu, \nu)}
+    \int_{\mathcal{X} \times \mathcal{X}} d(\bm{x}, \bm{y}) \, \mathrm{d}\pi(\bm{x}, \bm{y})
+    \label{eq:wasserstein_def}
+\end{equation}
+其中 $\Pi(\mu, \nu)$ 为边际分布分别为 $\mu$ 和 $\nu$ 的联合分布（传输计划）的集合。
+\end{definition}
+
+\begin{theorem}[一维闭式解]
+\label{thm:1d_wasserstein}
+当 $\mathcal{X} = \mathbb{R}$ 时，1-Wasserstein 距离具有闭式表达：
+\begin{equation}
+    W_1(\mu, \nu) = \int_{-\infty}^{+\infty} |F_\mu(x) - F_\nu(x)| \, \mathrm{d}x
+    \label{eq:wasserstein_1d}
+\end{equation}
+其中 $F_\mu, F_\nu$ 分别为 $\mu, \nu$ 的累积分布函数（CDF）。
+\end{theorem}
+
+\begin{lemma}[离散经验分布的 Wasserstein 距离]
+\label{lem:discrete_wasserstein}
+对于两个离散经验分布 $\hat{\mu} = \frac{1}{m}\sum_{i=1}^{m} \delta_{a_i}$
+和 $\hat{\nu} = \frac{1}{n}\sum_{j=1}^{n} \delta_{b_j}$，
+将合并样本排序后，其 1-Wasserstein 距离可通过如下方式高效计算：
+
+将特征投影到主方向 $\bm{v}$（第一主成分）后，对投影值排序，
+令 $\{a_{(1)} \leq \cdots \leq a_{(m)}\}$ 和 $\{b_{(1)} \leq \cdots \leq b_{(n)}\}$
+为排序后的投影值。则：
+\begin{equation}
+    W_1(\hat{\mu}, \hat{\nu}) \approx
+    \int_0^1 \left| F_{\hat{\mu}}^{-1}(q) - F_{\hat{\nu}}^{-1}(q) \right| \mathrm{d}q
+    \label{eq:discrete_wasserstein}
+\end{equation}
+其中 $F^{-1}$ 为分位数函数，实际计算中通过线性插值离散化：
+\begin{equation}
+    \hat{W}_1(\hat{\mu}, \hat{\nu}) = \frac{1}{K} \sum_{k=1}^{K}
+    \left| Q_{\hat{\mu}}\!\left(\tfrac{k}{K}\right) - Q_{\hat{\nu}}\!\left(\tfrac{k}{K}\right) \right|
+    \label{eq:quantile_approx}
+\end{equation}
+其中 $K$ 为分位数网格点数（实践中取 $K = 100$）。
+\end{lemma}
+
+% ========================================================================
+\section{动态类别惩罚系数的构造}
+% ========================================================================
+
+\begin{definition}[参考分布]
+定义全局参考分布 $\bar{\mu}$ 为所有类别特征分布的均匀混合：
+\begin{equation}
+    \bar{\mu} = \frac{1}{|\mathcal{C}|} \sum_{c \in \mathcal{C}} \mu_c
+    \label{eq:reference_dist}
+\end{equation}
+\end{definition}
+
+\begin{definition}[类别偏离度]
+类别 $c$ 的特征偏离度定义为其分布与参考分布之间的 Wasserstein 距离：
+\begin{equation}
+    d_c = W_1(\mu_c, \bar{\mu}), \quad c \in \mathcal{C}
+    \label{eq:deviation}
+\end{equation}
+直觉解释：$d_c$ 越大，说明该类别的特征分布越偏离"主流"，模型越容易忽视或混淆该类别。
+\end{definition}
+
+\begin{theorem}[动态惩罚系数映射]
+\label{thm:dynamic_alpha}
+定义基于 Wasserstein 距离的动态类别惩罚系数：
+\begin{equation}
+    \alpha_c = \sigma\!\left(\frac{d_c}{\tau}\right)
+    = \frac{1}{1 + \exp\!\left(-\dfrac{d_c}{\tau}\right)}
+    \label{eq:alpha_mapping}
+\end{equation}
+其中 $\tau > 0$ 为温度超参数，控制映射的灵敏度：
+\begin{itemize}
+    \item 当 $\tau \to 0^+$ 时，$\alpha_c \to \mathbb{1}[d_c > 0]$（硬阈值）；
+    \item 当 $\tau \to +\infty$ 时，$\alpha_c \to 0.5$（退化为均匀权重）；
+    \item 实践中取 $\tau$ 为所有 $d_c$ 的中位数或均值，
+          使得映射处于 sigmoid 的线性区，保持梯度敏感性。
+\end{itemize}
+\end{theorem}
+
+\begin{remark}[物理意义]
+对于极少数类别（如 Hole），若其特征分布偏离全局均值较远（$d_1$ 较大），
+则 $\alpha_1 > 0.5$，在损失函数中获得更高的权重补偿。
+这种补偿不是基于样本频率的简单逆比例，
+而是基于特征空间中几何距离的自适应调节，具有更强的数学理据。
+\end{remark}
+
+% ========================================================================
+\section{WD-Focal Loss 统一公式}
+% ========================================================================
+
+\begin{theorem}[WD-Focal Loss]
+\label{thm:wd_focal_loss}
+综合以上推导，定义基于 Wasserstein 距离的自适应焦点损失函数为：
+\begin{equation}
+    \boxed{
+    \mathcal{L}_{\mathrm{WD\text{-}FL}}(p_t, c)
+    = -\alpha_c \cdot (1 - p_t)^{\gamma} \cdot \log(p_t)
+    }
+    \label{eq:wd_focal_loss}
+\end{equation}
+其中：
+\begin{align}
+    \alpha_c &= \sigma\!\left(\frac{W_1(\mu_c, \bar{\mu})}{\tau}\right) \label{eq:alpha_final} \\
+    \bar{\mu} &= \frac{1}{|\mathcal{C}|} \sum_{c' \in \mathcal{C}} \mu_{c'} \label{eq:mu_bar_final} \\
+    W_1(\mu_c, \bar{\mu}) &= \frac{1}{K} \sum_{k=1}^{K}
+    \left| Q_{\mu_c}\!\left(\tfrac{k}{K}\right) - Q_{\bar{\mu}}\!\left(\tfrac{k}{K}\right) \right|
+    \label{eq:w1_final}
+\end{align}
+超参数集合 $\Theta_{\mathrm{WD\text{-}FL}} = \{\gamma, \tau, K\}$，
+推荐默认值为 $\gamma = 2.0$，$\tau = \mathrm{median}(\{d_c\}_{c \in \mathcal{C}})$，$K = 100$。
+\end{theorem}
+
+\begin{remark}[与标准 Focal Loss 的关系]
+当 $\tau \to +\infty$ 时，所有 $\alpha_c \to 0.5$，
+$\mathcal{L}_{\mathrm{WD\text{-}FL}}$ 退化为使用固定 $\alpha = 0.5$ 的标准 Focal Loss。
+因此，标准 Focal Loss 是 WD-Focal Loss 的特例，
+后者通过 Wasserstein 距离提供了严格的数学泛化。
+\end{remark}
+
+\begin{remark}[计算复杂度]
+Wasserstein 距离的计算仅依赖特征分布的分位数函数，
+需要 $O(n_c \log n_c)$ 的排序操作。
+在实践中，每隔 $T$ 个 epoch（推荐 $T = 10$）更新一次 $\{\alpha_c\}$，
+相对于主训练循环的计算开销可忽略不计。
+\end{remark}
+
+\end{document}

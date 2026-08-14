@@ -1,0 +1,4 @@
+interface:
+  display_name: "国赛论文写作"
+  short_description: "按国赛规范把项目实验写成完整数模论文 LaTeX 成稿"
+  default_prompt: "Use $cumcm-paper-writing to turn this project's experiments and results into a CUMCM competition paper."

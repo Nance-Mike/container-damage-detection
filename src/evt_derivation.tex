@@ -1,0 +1,155 @@
+% EVT 极值理论分类器 — 数学推导
+% 基于威布尔分布的开放集缺陷概率推断
+% 编译命令: xelatex evt_derivation.tex
+
+\documentclass[12pt, a4paper]{ctexart}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{bm}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\newtheorem{definition}{定义}[section]
+\newtheorem{theorem}{定理}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{remark}{注记}[section]
+
+\title{\textbf{基于极值理论的集装箱缺陷概率推断模型 \\ 数学推导}}
+\author{2026 数学建模国赛 · 选题 D · 问题 1}
+\date{}
+
+\begin{document}
+\maketitle
+
+% ========================================================================
+\section{问题形式化}
+% ========================================================================
+
+\begin{definition}[置信度序列]
+令 $\mathcal{X} = \{x_1, x_2, \ldots, x_N\}$ 为验证集中已知含有缺陷的图片集合。
+对每张图片 $x_i$，通过训练好的 YOLO 检测模型 $\mathcal{M}$ 进行推理，
+获得所有候选检测框的置信度集合 $\{c_{i,1}, c_{i,2}, \ldots, c_{i,m_i}\}$。
+
+定义图片级最大置信度：
+\begin{equation}
+    s_i = \max_{j \in \{1, \ldots, m_i\}} c_{i,j}, \quad i = 1, 2, \ldots, N
+    \label{eq:max_conf}
+\end{equation}
+
+当图片 $x_i$ 中未检测到任何目标（$m_i = 0$）时，令 $s_i = 0$。
+由此获得置信度序列 $\mathcal{S} = \{s_1, s_2, \ldots, s_N\}$。
+\end{definition}
+
+\begin{remark}[统计直觉]
+对于含有真实缺陷的图片，YOLO 模型通常会以较高置信度检测到至少一个目标，
+因此 $s_i$ 应集中分布在 $(0.5, 1.0)$ 区间内。
+对于不含缺陷的图片，模型要么不输出检测框（$s_i = 0$），
+要么仅输出低置信度的误检（$s_i$ 集中在 $(0, 0.3)$ 附近）。
+这种分布的分离性是本方法的统计基础。
+\end{remark}
+
+% ========================================================================
+\section{极值理论基础}
+% ========================================================================
+
+\begin{theorem}[Fisher-Tippett-Gnedenko 定理]
+令 $\{X_1, X_2, \ldots, X_n\}$ 为独立同分布随机变量序列，
+$M_n = \max(X_1, \ldots, X_n)$。
+若存在常数列 $\{a_n > 0\}$ 和 $\{b_n\}$ 使得：
+\begin{equation}
+    \frac{M_n - b_n}{a_n} \xrightarrow{d} G
+\end{equation}
+则极限分布 $G$ 必属于广义极值分布 (GEV) 族中的三种类型之一：
+Gumbel 分布、Fr\'{e}chet 分布或 Weibull 分布。
+\end{theorem}
+
+\begin{lemma}[Weibull 分布的适用性]
+\label{lem:weibull_choice}
+对于有界随机变量（$s_i \in [0, 1]$），其块极大值的极限分布属于 Weibull 型。
+由于 YOLO 置信度 $c_{i,j} \in [0, 1]$，最大置信度 $s_i$ 同样有界，
+因此选择 Weibull 分布作为拟合模型具有严格的理论依据。
+\end{lemma}
+
+% ========================================================================
+\section{Weibull 分布拟合}
+% ========================================================================
+
+\begin{definition}[Weibull 分布]
+\label{def:weibull}
+二参数 Weibull 分布的概率密度函数 (PDF) 和累积分布函数 (CDF) 分别为：
+\begin{align}
+    f(s; k, \lambda) &= \frac{k}{\lambda} \left(\frac{s}{\lambda}\right)^{k-1}
+    \exp\!\left[-\left(\frac{s}{\lambda}\right)^{k}\right], \quad s \geq 0
+    \label{eq:weibull_pdf} \\[6pt]
+    F(s; k, \lambda) &= 1 - \exp\!\left[-\left(\frac{s}{\lambda}\right)^{k}\right]
+    \label{eq:weibull_cdf}
+\end{align}
+其中 $k > 0$ 为形状参数，$\lambda > 0$ 为尺度参数。
+\end{definition}
+
+\begin{theorem}[极大似然估计]
+给定观测序列 $\mathcal{S} = \{s_1, \ldots, s_N\}$，对数似然函数为：
+\begin{equation}
+    \ell(k, \lambda) = N \ln k - Nk \ln \lambda + (k-1) \sum_{i=1}^{N} \ln s_i
+    - \sum_{i=1}^{N} \left(\frac{s_i}{\lambda}\right)^{k}
+    \label{eq:log_likelihood}
+\end{equation}
+令 $\frac{\partial \ell}{\partial \lambda} = 0$，可得 $\lambda$ 的闭式表达：
+\begin{equation}
+    \hat{\lambda} = \left(\frac{1}{N} \sum_{i=1}^{N} s_i^{\hat{k}}\right)^{1/\hat{k}}
+    \label{eq:lambda_hat}
+\end{equation}
+$\hat{k}$ 通过数值优化（如 Newton-Raphson 法）求解。
+实践中直接调用 \texttt{scipy.stats.weibull\_min.fit()} 实现。
+\end{theorem}
+
+% ========================================================================
+\section{缺陷概率推断}
+% ========================================================================
+
+\begin{theorem}[缺陷概率模型]
+\label{thm:defect_prob}
+对于测试样本 $x$，令 $s_x = \max(\mathrm{conf}(x))$ 为其最大检测置信度。
+基于已拟合的 Weibull 参数 $(\hat{k}, \hat{\lambda})$，
+定义缺陷概率为 CDF 值：
+\begin{equation}
+    \boxed{
+    P_{\text{defect}}(x) = F(s_x; \hat{k}, \hat{\lambda})
+    = 1 - \exp\!\left[-\left(\frac{s_x}{\hat{\lambda}}\right)^{\hat{k}}\right]
+    }
+    \label{eq:defect_prob}
+\end{equation}
+\end{theorem}
+
+\begin{remark}[概率解释]
+$P_{\text{defect}}(x)$ 表示观测到的最大置信度 $s_x$ 落在已知缺陷分布内的概率。
+值越高，说明该图片的检测模式越符合"有缺陷"的统计规律；
+值越低，说明越可能是异常点（即"无缺陷"）。
+\end{remark}
+
+% ========================================================================
+\section{最优分类阈值确定}
+% ========================================================================
+
+\begin{definition}[分类判据]
+给定阈值 $\tau \in (0, 1)$，分类规则为：
+\begin{equation}
+    \hat{y}(x) = \begin{cases}
+    1 \quad (\text{有缺陷}) & \text{if } P_{\text{defect}}(x) \geq \tau \\
+    0 \quad (\text{无缺陷}) & \text{if } P_{\text{defect}}(x) < \tau
+    \end{cases}
+    \label{eq:classification_rule}
+\end{equation}
+\end{definition}
+
+\begin{theorem}[最优阈值]
+最优阈值 $\tau^*$ 通过在验证集上最大化 $F_1$ 分数确定：
+\begin{equation}
+    \tau^* = \arg\max_{\tau \in (0,1)} F_1(\tau)
+    = \arg\max_{\tau} \frac{2 \cdot \mathrm{Precision}(\tau) \cdot \mathrm{Recall}(\tau)}
+    {\mathrm{Precision}(\tau) + \mathrm{Recall}(\tau)}
+    \label{eq:optimal_threshold}
+\end{equation}
+实践中通过在 $\tau \in \{0.01, 0.02, \ldots, 0.99\}$ 的均匀网格上枚举搜索。
+\end{theorem}
+
+\end{document}

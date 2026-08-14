@@ -1,0 +1,161 @@
+% !TEX program = xelatex
+% =====================================================================
+%  全国大学生数学建模竞赛（高教社杯）论文模板
+%  排版遵循国赛论文格式规范与一等奖通行版式。
+%  编译：xelatex main.tex（两次），或运行 build.ps1
+% =====================================================================
+\documentclass[12pt,a4paper]{ctexart}
+
+% ------------------------- 页面与字体 -------------------------
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\setCJKmainfont{SimSun}
+\setCJKsansfont{SimHei}
+\setCJKmonofont{FangSong}
+
+% ------------------------- 常用宏包 -------------------------
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+\usepackage{caption}
+\DeclareCaptionFont{wuhao}{\zihao{5}}
+\DeclareCaptionFont{hei}{\heiti}
+\captionsetup{font={wuhao,hei},labelsep=quad,skip=5pt}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black,
+            bookmarksnumbered=true]{hyperref}
+
+% ------------------------- 版式：符合国赛规范 -------------------------
+% 正文小四宋体，1.4 倍行距；无页眉，页脚居中页码
+\linespread{1.4}
+\emergencystretch=1em
+\raggedbottom
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\zihao{5}\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+% 一级标题：四号黑体居中（一、）；二级/三级标题：小四黑体左对齐
+\ctexset{
+  section = {
+    format = {\zihao{4}\heiti\centering},
+    name = {,、},
+    number = \chinese{section},
+    aftername = {},
+    beforeskip = 20pt,
+    afterskip = 12pt,
+  },
+  subsection = {
+    format = {\zihao{-4}\heiti},
+    name = {,},
+    number = \arabic{section}.\arabic{subsection},
+    aftername = {\hspace{0.5em}},
+    beforeskip = 14pt,
+    afterskip = 8pt,
+  },
+  subsubsection = {
+    format = {\zihao{-4}\heiti},
+    name = {,},
+    number = \arabic{section}.\arabic{subsection}.\arabic{subsubsection},
+    aftername = {\hspace{0.5em}},
+    beforeskip = 10pt,
+    afterskip = 6pt,
+  },
+}
+
+% 图表按章编号：图5-1、表6-2；公式全文连续编号
+\renewcommand{\thefigure}{\thesection-\arabic{figure}}
+\renewcommand{\thetable}{\thesection-\arabic{table}}
+\renewcommand{\theequation}{\arabic{equation}}
+
+% ------------------------- 定理环境（黑体标题、直立正文） -------------------------
+\newtheoremstyle{cumcm}% name
+  {6pt}{6pt}% space above / below
+  {}% body font (upright)
+  {}% indent
+  {\heiti}% heading font
+  {.}% punctuation after heading
+  {0.5em}% space after heading
+  {}% heading spec
+\theoremstyle{cumcm}
+\newtheorem{theorem}{定理}[section]
+\newtheorem{definition}{定义}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{corollary}{推论}[section]
+\newtheorem{remark}{注记}[section]
+\renewcommand{\proofname}{\heiti 证明}
+
+% ------------------------- 代码列表样式 -------------------------
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\zihao{-5},
+  commentstyle=\color{gray},
+  keywordstyle=\bfseries,
+  stringstyle=\color{blue!55!black},
+  numbers=left,
+  numberstyle=\tiny,
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{black!25},
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  tabsize=4,
+  xleftmargin=1.2em,
+  framexleftmargin=1.2em,
+  literate={∈}{{$\in$}}1 {≈}{{$\approx$}}1 {σ}{{$\sigma$}}1
+           {λ}{{$\lambda$}}1 {μ}{{$\mu$}}1 {γ}{{$\gamma$}}1
+           {τ}{{$\tau$}}1 {→}{{$\rightarrow$}}1 {×}{{$\times$}}1
+           {≤}{{$\leq$}}1 {≥}{{$\geq$}}1 {√}{{$\surd$}}1
+           {Σ}{{$\Sigma$}}1 {∞}{{$\infty$}}1 {α}{{$\alpha$}}1,
+}
+
+% ------------------------- 纸质版/电子版切换 -------------------------
+% 纸质版论文要求第一、二页分别为承诺书与编号专用页；
+% 电子版论文不得包含这两页（第一页即摘要页）。提交电子版时保持 false。
+\newif\ifpaperversion
+\paperversionfalse
+
+\begin{document}
+
+% ==================== 纸质版前置页（默认不输出） ====================
+\ifpaperversion
+  \pagenumbering{gobble}
+  \input{pages/chengnuo}
+  \input{pages/bianhao}
+  \pagenumbering{arabic}
+\fi
+
+% ==================== 摘要专用页（第1页起编号） ====================
+\input{sections/abstract}
+
+% ==================== 正文 ====================
+\input{sections/s1_problem}
+\input{sections/s2_analysis}
+\input{sections/s3_assumptions}
+\input{sections/s4_symbols}
+\input{sections/s5_data}
+\input{sections/s6_problem1}
+\input{sections/s7_problem2}
+\input{sections/s8_problem3}
+\input{sections/s9_conclusion}
+
+\input{refs}
+
+% ==================== 附录 ====================
+\appendix
+\input{sections/appendix}
+
+\end{document}
