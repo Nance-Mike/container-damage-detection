@@ -1,0 +1,7 @@
+path: c:/Users/administrator/Desktop/2026数模国赛/选题D/data/processed_perturb/blur7
+train: images
+val: images
+names:
+  0: Dent
+  1: Hole
+  2: Rusty
