@@ -1,0 +1,359 @@
+{
+  "pages": [
+    {
+      "page_num": 1,
+      "text": "YOLO9000:\nBetter, Faster, Stronger\nJosephRedmon∗†,AliFarhadi∗†\nUniversityofWashington∗,AllenInstituteforAI†\nhttp://pjreddie.com/yolo9000/\nAbstract\nWe introduce YOLO9000, a state-of-the-art, real-time\nobject detection system that can detect over 9000 object\ncategories. First we propose various improvements to the\nYOLO detection method, both novel and drawn from prior\nwork. Theimprovedmodel,YOLOv2,isstate-of-the-arton\nstandarddetectiontaskslikePASCALVOCandCOCO.Us-\ninganovel,multi-scaletrainingmethodthesameYOLOv2\nmodel can run at varying sizes, offering an easy tradeoff\nbetween speed and accuracy. At 67 FPS, YOLOv2 gets\n76.8 mAP on VOC 2007. At 40 FPS, YOLOv2 gets 78.6\nmAP,outperformingstate-of-the-artmethodslikeFasterR-\nCNNwithResNetandSSDwhilestillrunningsignificantly\nfaster. Finallyweproposeamethodtojointlytrainonob-\njectdetectionandclassification.Usingthismethodwetrain\nYOLO9000simultaneouslyontheCOCOdetectiondataset\nandtheImageNetclassificationdataset. Ourjointtraining\nallows YOLO9000 to predict detections for object classes\nthat don’t have labelled detection data. We validate our\napproachontheImageNetdetectiontask. YOLO9000gets\n19.7mAPontheImageNetdetectionvalidationsetdespite\nonlyhavingdetectiondatafor44ofthe200classes. Onthe\n156 classes not in COCO, YOLO9000 gets 16.0 mAP. But\nYOLOcandetectmorethanjust200classes;itpredictsde-\ntectionsformorethan9000differentobjectcategories. And\nitstillrunsinreal-time.\n1.Introduction\nGeneral purpose object detection should be fast, accu-\nrate,andabletorecognizeawidevarietyofobjects. Since\nthe introduction of neural networks, detection frameworks\nhavebecomeincreasinglyfastandaccurate. However,most\ndetectionmethodsarestillconstrainedtoasmallsetofob-\njects.\nCurrent object detection datasets are limited compared\nto datasets for other tasks like classification and tagging.\nThe most common detection datasets contain thousands to\nhundreds of thousands of images with dozens to hundreds\nof tags [3] [10] [2]. Classification datasets have millions\nofimageswithtensorhundredsofthousandsofcategories\n[20][2].\nWewouldlikedetectiontoscaletolevelofobjectclas-\nsification. However, labelling images for detection is far\nFigure1: YOLO9000. YOLO9000candetectawidevarietyof\nmore expensive than labelling for classification or tagging\nobjectclassesinreal-time.\n(tagsareoftenuser-suppliedforfree). Thusweareunlikely\n1\n6102\nceD\n52\n]VC.sc[\n1v24280.2161:viXra",
+      "tables": []
+    },
+    {
+      "page_num": 2,
+      "text": "toseedetectiondatasetsonthesamescaleasclassification simultaneously switch to learning object detection and ad-\ndatasetsinthenearfuture. justtothenewinputresolution.\nWe propose a new method to harness the large amount ForYOLOv2wefirstfinetunetheclassificationnetwork\nof classification data we already have and use it to expand atthefull448×448resolutionfor10epochsonImageNet.\nthescopeofcurrentdetectionsystems. Ourmethodusesa Thisgivesthenetworktimetoadjustitsfilterstoworkbetter\nhierarchical view of object classification that allows us to on higherresolution input. We then finetune the resulting\ncombinedistinctdatasetstogether. network on detection. This high resolution classification\nWe also propose a joint training algorithm that allows networkgivesusanincreaseofalmost4%mAP.\nustotrainobjectdetectorsonbothdetectionandclassifica- Convolutional With Anchor Boxes. YOLO predicts\ntiondata.Ourmethodleverageslabeleddetectionimagesto thecoordinatesofboundingboxesdirectlyusingfullycon-\nlearntopreciselylocalizeobjectswhileitusesclassification nected layers on top of the convolutional feature extractor.\nimagestoincreaseitsvocabularyandrobustness. Instead of predicting coordinates directly Faster R-CNN\nUsingthismethodwetrainYOLO9000,areal-timeob- predictsboundingboxesusinghand-pickedpriors[15]. Us-\njectdetectorthatcandetectover9000differentobjectcat- ing only convolutional layers the region proposal network\negories. First we improve upon the base YOLO detection (RPN)inFasterR-CNNpredictsoffsetsandconfidencesfor\nsystem to produce YOLOv2, a state-of-the-art, real-time anchor boxes. Since the prediction layer is convolutional,\ndetector. Then we use our dataset combination method theRPNpredictstheseoffsetsateverylocationinafeature\nand joint training algorithm to train a model on more than map.Predictingoffsetsinsteadofcoordinatessimplifiesthe\n9000classesfromImageNetaswellasdetectiondatafrom problemandmakesiteasierforthenetworktolearn.\nCOCO. We remove the fully connected layers from YOLO and\nAllofourcodeandpre-trainedmodelsareavailableon- use anchor boxes to predict bounding boxes. First we\nlineathttp://pjreddie.com/yolo9000/. eliminate one pooling layer to make the output of the net-\nwork’s convolutional layers higher resolution. We also\n2.Better shrink the network to operate on 416 input images instead\nof448×448.Wedothisbecausewewantanoddnumberof\nYOLOsuffersfromavarietyofshortcomingsrelativeto locationsinourfeaturemapsothereisasinglecentercell.\nstate-of-the-artdetectionsystems. ErroranalysisofYOLO Objects,especiallylargeobjects,tendtooccupythecenter\ncompared to Fast R-CNN shows that YOLO makes a sig- of the image so it’s good to have a single location right at\nnificantnumberoflocalizationerrors. Furthermore,YOLO thecentertopredicttheseobjectsinsteadoffourlocations\nhasrelativelylowrecallcomparedtoregionproposal-based thatareallnearby. YOLO’sconvolutionallayersdownsam-\nmethods. Thus we focus mainly on improving recall and pletheimagebyafactorof32sobyusinganinputimage\nlocalizationwhilemaintainingclassificationaccuracy. of416wegetanoutputfeaturemapof13×13.\nComputervisiongenerallytrendstowardslarger,deeper When we move to anchor boxes we also decouple the\nnetworks[6][18][17]. Betterperformanceoftenhingeson class prediction mechanism from the spatial location and\ntraininglargernetworksorensemblingmultiplemodelsto- instead predict class and objectness for every anchor box.\ngether. However, with YOLOv2 we want a more accurate Following YOLO, the objectness prediction still predicts\ndetectorthatisstillfast. Insteadofscalingupournetwork, the IOU of the ground truth and the proposed box and the\nwe simplify the network and then make the representation classpredictionspredicttheconditionalprobabilityofthat\neasier to learn. We pool a variety of ideas from past work classgiventhatthereisanobject.\nwith our own novel concepts to improve YOLO’s perfor- Usinganchorboxeswegetasmalldecreaseinaccuracy.\nmance. AsummaryofresultscanbefoundinTable2. YOLO only predicts 98 boxes per image but with anchor\nBatchNormalization.Batchnormalizationleadstosig- boxes our model predicts more than a thousand. Without\nnificantimprovementsinconvergencewhileeliminatingthe anchorboxesourintermediatemodelgets69.5mAPwitha\nneedforotherformsofregularization[7]. Byaddingbatch recallof81%.Withanchorboxesourmodelgets69.2mAP\nnormalization on all of the convolutional layers in YOLO witharecallof88%. EventhoughthemAPdecreases,the\nwegetmorethan2%improvementinmAP.Batchnormal- increase in recall means that our model has more room to\nization also helps regularize the model. With batch nor- improve.\nmalizationwecanremovedropoutfromthemodelwithout DimensionClusters. Weencountertwoissueswithan-\noverfitting. chor boxes when using them with YOLO. The first is that\nHigh Resolution Classifier. All state-of-the-art detec- theboxdimensionsarehandpicked. Thenetworkcanlearn\ntion methods use classifier pre-trained on ImageNet [16]. toadjusttheboxesappropriatelybutifwepickbetterpriors\nStartingwithAlexNetmostclassifiersoperateoninputim- for the network to start with we can make it easier for the\nagessmallerthan256×256[8]. TheoriginalYOLOtrains networktolearntopredictgooddetections.\ntheclassifiernetworkat224×224andincreasesthereso- Instead of choosing priors by hand, we run k-means\nlutionto448fordetection. Thismeansthenetworkhasto clustering on the training set bounding boxes to automat-\n2",
+      "tables": []
+    },
+    {
+      "page_num": 3,
+      "text": "COCO\n0\n1 2 3 4 5 6 7 8 9 101112131415\n# Clusters\nUOI\ngvA\n0.75 Direct location prediction. When using anchor boxes\nwithYOLOweencounterasecondissue:modelinstability,\nVOC 2007\nespecially during early iterations. Most of the instability\ncomes from predicting the (x,y) locations for the box. In\nregionproposalnetworksthenetworkpredictsvaluest and\nx\nt andthe(x,y)centercoordinatesarecalculatedas: y\nx=(t ∗w )−x\nx a a\ny =(t ∗h )−y y a a\nForexample,apredictionoft = 1wouldshiftthebox\nFigure2:ClusteringboxdimensionsonVOCandCOCO.We x\ntotherightbythewidthoftheanchorbox,apredictionof\nrunk-meansclusteringonthedimensionsofboundingboxestoget\nt =−1wouldshiftittotheleftbythesameamount.\ngoodpriorsforourmodel.TheleftimageshowstheaverageIOU x\nwegetwithvariouschoicesfork.Wefindthatk=5givesagood Thisformulationisunconstrainedsoanyanchorboxcan\ntradeoffforrecallvs. complexityofthemodel. Therightimage end up at any point in the image, regardless of what loca-\nshowstherelativecentroidsforVOCandCOCO.Bothsetsofpri- tionpredictedthebox.Withrandominitializationthemodel\norsfavorthinner,tallerboxeswhileCOCOhasgreatervariationin takesalongtimetostabilizetopredictingsensibleoffsets.\nsizethanVOC. Instead of predicting offsets we follow the approach of\nYOLOandpredictlocationcoordinatesrelativetotheloca-\ntion of the grid cell. This bounds the ground truth to fall\nically find good priors. If we use standard k-means with between 0 and 1. We use a logistic activation to constrain\nEuclidean distance larger boxes generate more error than thenetwork’spredictionstofallinthisrange.\nsmaller boxes. However, what we really want are priors The network predicts 5 bounding boxes at each cell in\nthat lead to good IOU scores, which is independent of the theoutputfeaturemap. Thenetworkpredicts5coordinates\nsizeofthebox. Thusforourdistancemetricweuse: foreachboundingbox, t , t , t , t , andt . Ifthecellis\nx y w h o\noffsetfromthetopleftcorneroftheimageby(c ,c )and\nx y\nthe bounding box prior has width and height p , p , then\nw h\nd(box,centroid)=1−IOU(box,centroid) thepredictionscorrespondto:\nWerunk-meansforvariousvaluesofk andplottheav-\nb =σ(t )+c\nerage IOU with closest centroid, see Figure 2. We choose x x x\nk = 5 as a good tradeoff between model complexity and b y =σ(t y )+c y\nhighrecall. Theclustercentroidsaresignificantlydifferent b =p etw\nw w\nthanhand-pickedanchorboxes.Therearefewershort,wide\nboxesandmoretall,thinboxes.\nb\nh\n=p\nh\neth\nWecomparetheaverageIOUtoclosestpriorofourclus- Pr(object)∗IOU(b,object)=σ(t o )\nteringstrategyandthehand-pickedanchorboxesinTable1.\nAtonly5priorsthecentroidsperformsimilarlyto9anchor\nSince we constrain the location prediction the\nboxes with an average IOU of 61.0 compared to 60.9. If\nparametrization is easier to learn, making the network\nweuse9centroidsweseeamuchhigheraverageIOU.This\nmore stable. Using dimension clusters along with directly\nindicatesthatusingk-meanstogenerateourboundingbox\npredicting the bounding box center location improves\nstartsthemodeloffwithabetterrepresentationandmakes\nYOLObyalmost5%overtheversionwithanchorboxes.\nthetaskeasiertolearn.\nFine-Grained Features.This modified YOLO predicts\nBoxGeneration # AvgIOU detections on a 13×13 feature map. While this is suffi-\nClusterSSE 5 58.7 cientforlargeobjects,itmaybenefitfromfinergrainedfea-\nClusterIOU 5 61.0 turesforlocalizingsmallerobjects.FasterR-CNNandSSD\nAnchorBoxes[15] 9 60.9 bothruntheirproposalnetworksatvariousfeaturemapsin\nClusterIOU 9 67.2 thenetworktogetarangeofresolutions. Wetakeadiffer-\nentapproach,simplyaddingapassthroughlayerthatbrings\nfeaturesfromanearlierlayerat26×26resolution.\nTable1:AverageIOUofboxestoclosestpriorsonVOC2007. Thepassthroughlayerconcatenatesthehigherresolution\nTheaverageIOUofobjectsonVOC2007totheirclosest,unmod- features with the low resolution features by stacking adja-\nified prior using different generation methods. Clustering gives cent features into different channels instead of spatial lo-\nmuchbetterresultsthanusinghand-pickedpriors. cations, similar to the identity mappings in ResNet. This\n3",
+      "tables": [
+        [
+          [
+            null,
+            null,
+            null,
+            ""
+          ],
+          [
+            null,
+            "",
+            "",
+            ""
+          ],
+          [
+            null,
+            null,
+            null,
+            ""
+          ],
+          [
+            "",
+            "",
+            "",
+            null
+          ]
+        ]
+      ]
+    },
+    {
+      "page_num": 4,
+      "text": "c\nx\np\nw c\ny\nb\nw\nσ(t ) b =σ(t )+c p h b h y b x =σ(t x )+c x\ny y y\nσ(t ) b =p et w\nx w w\nb =p et h\nh h\nFigure3:Boundingboxeswithdimensionpriorsandlocation\nprediction. Wepredictthewidthandheightoftheboxasoffsets\nfrom cluster centroids. We predict the center coordinates of the\nbox relative to the location of filter application using a sigmoid\nfunction.\nturnsthe26×26×512featuremapintoa13×13×2048\nfeature map, which can be concatenated with the original\nfeatures. Ourdetectorrunsontopofthisexpandedfeature\nmapsothatithasaccesstofinegrainedfeatures. Thisgives\namodest1%performanceincrease.\nMulti-ScaleTraining.TheoriginalYOLOusesaninput\nresolutionof448×448. Withtheadditionofanchorboxes\nwechangedtheresolutionto416×416.However,sinceour\nmodelonlyusesconvolutionalandpoolinglayersitcanbe\nresizedonthefly.WewantYOLOv2toberobusttorunning\nonimagesofdifferentsizessowetrainthisintothemodel.\nInsteadoffixingtheinputimagesizewechangethenet-\nwork every few iterations. Every 10 batches our network\nrandomly chooses a new image dimension size. Since our\nmodel downsamples by a factor of 32, we pull from the\nfollowing multiples of 32: {320,352,...,608}. Thus the\nsmallestoptionis320×320andthelargestis608×608.\nWeresizethenetworktothatdimensionandcontinuetrain-\ning.\nThis regime forces the network to learn to predict well\nacrossavarietyofinputdimensions. Thismeansthesame\nnetworkcanpredictdetectionsatdifferentresolutions. The\nnetwork runs faster at smaller sizes so YOLOv2 offers an\neasytradeoffbetweenspeedandaccuracy.\nAt low resolutions YOLOv2 operates as a cheap, fairly\naccuratedetector. At288×288itrunsatmorethan90FPS\nwith mAP almost as good as Fast R-CNN. This makes it\nideal for smaller GPUs, high framerate video, or multiple\nvideostreams.\nAthighresolutionYOLOv2isastate-of-the-artdetector\nwith 78.6 mAP on VOC 2007 while still operating above\nreal-timespeeds. SeeTable3foracomparisonofYOLOv2\nnoisicerP\negarevA\nnaeM\n80\nFast R e e r s n R e - t CNN SSD512\nYOLOv2\nSSD300\nFaster R-CNN\nFast R-CNN\n70\nR-CNN\nYOLO\n60\n0 30 50 100\nFrames Per Second\nFigure4: AccuracyandspeedonVOC2007.\nwithotherframeworksonVOC2007. Figure4\nFurtherExperiments. WetrainYOLOv2fordetection\nonVOC2012. Table4showsthecomparativeperformance\nofYOLOv2versusotherstate-of-the-artdetectionsystems.\nYOLOv2achieves73.4mAPwhilerunningfarfasterthan\ncompetingmethods. WealsotrainonCOCOandcompare\nto other methods in Table 5. On the VOC metric (IOU =\n.5)YOLOv2gets44.0mAP,comparabletoSSDandFaster\nR-CNN.\nDetectionFrameworks Train mAP FPS\nFastR-CNN[5] 2007+2012 70.0 0.5\nFasterR-CNNVGG-16[15] 2007+2012 73.2 7\nFasterR-CNNResNet[6] 2007+2012 76.4 5\nYOLO[14] 2007+2012 63.4 45\nSSD300[11] 2007+2012 74.3 46\nSSD500[11] 2007+2012 76.8 19\nYOLOv2288×288 2007+2012 69.0 91\nYOLOv2352×352 2007+2012 73.7 81\nYOLOv2416×416 2007+2012 76.8 67\nYOLOv2480×480 2007+2012 77.8 59\nYOLOv2544×544 2007+2012 78.6 40\nTable 3: Detection frameworks on PASCAL VOC 2007.\nYOLOv2 is faster and more accurate than prior detection meth-\nods. It can also run at different resolutions for an easy tradeoff\nbetweenspeedandaccuracy. EachYOLOv2entryisactuallythe\nsametrainedmodelwiththesameweights,justevaluatedatadif-\nferentsize. AlltiminginformationisonaGeforceGTXTitanX\n(original,notPascalmodel).\n3.Faster\nWewantdetectiontobeaccuratebutwealsowantittobe\nfast. Most applications for detection, like robotics or self-\ndriving cars, rely on low latency predictions. In order to\n4",
+      "tables": [
+        [
+          [
+            "",
+            "",
+            null,
+            null,
+            "p\nw",
+            "",
+            null,
+            null,
+            null,
+            "isicerP\nF\nega\n70",
+            "F",
+            "aster",
+            null,
+            "SSD300"
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "sn",
+            null
+          ],
+          [
+            null,
+            null,
+            "",
+            null,
+            "",
+            "",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            "",
+            "b\nw",
+            "",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "p\nh",
+            "",
+            "b\nh",
+            "σ(t )\ny\nσ(t )\nx",
+            "",
+            "",
+            "b =σ(t\nx x\nb =σ(t\ny y\nb =p et w\nw w\nb =p et h\nh h",
+            "x\ny",
+            ")+c\n)+c",
+            null,
+            "R-CNN",
+            null,
+            "YOLO"
+          ],
+          [
+            null,
+            "re3:Boundingb\nction. Wepredict\ncluster centroids.\nelative to the loca\non.\nthe26×26×5\nre map, which c\nres. Ourdetecto\nsothatithasacc\ndest1%perform\nulti-ScaleTrain\nutionof448×4\nhangedtheresolu\nlonlyusesconv\nedonthefly.We\nagesofdifferen",
+            "",
+            "",
+            "",
+            "",
+            null,
+            null,
+            null,
+            "0 30 50\nFrames Per\nFigure4: Accuracyandspe\nocation\noffsets\ns of the\nwithotherframeworksonVOC20\nigmoid\nFurtherExperiments. Wetrai\nonVOC2012. Table4showsthec\nofYOLOv2versusotherstate-of-t\nYOLOv2achieves73.4mAPwhil\n×2048\ncompetingmethods. Wealsotrain\nriginal\nto other methods in Table 5. On t\nfeature\n.5)YOLOv2gets44.0mAP,comp\nsgives\nR-CNN.\nninput\nDetectionFrameworks\nboxes\nFastR-CNN[5] 20\nnceour\nFasterR-CNNVGG-16[15] 20\ncanbe\nFasterR-CNNResNet[6] 20\nunning\nYOLO[14] 20\nmodel.\nSSD300[11] 20",
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            "",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            "oxeswithdimen\nthewidthandhe\nWe predict the\ntion of filter app\n12featuremap\nan be concaten\nrrunsontopof\nesstofinegrain\nanceincrease.\ning.Theorigin\n48. Withthead\ntionto416×4\nolutionalandp\nwantYOLOv2\ntsizessowetra",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ]
+      ]
+    },
+    {
+      "page_num": 5,
+      "text": "YOLO YOLOv2\nbatchnorm? (cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88)\nhi-resclassifier? (cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88)\nconvolutional? (cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88)\nanchorboxes? (cid:88) (cid:88)\nnewnetwork? (cid:88) (cid:88) (cid:88) (cid:88) (cid:88)\ndimensionpriors? (cid:88) (cid:88) (cid:88) (cid:88)\nlocationprediction? (cid:88) (cid:88) (cid:88) (cid:88)\npassthrough? (cid:88) (cid:88) (cid:88)\nmulti-scale? (cid:88) (cid:88)\nhi-resdetector? (cid:88)\nVOC2007mAP 63.4 65.8 69.5 69.2 69.6 74.4 75.4 76.8 78.6\nTable2: ThepathfromYOLOtoYOLOv2. MostofthelisteddesigndecisionsleadtosignificantincreasesinmAP.Two\nexceptions are switching to a fully convolutional network with anchor boxes and using the new network. Switching to the\nanchorboxstyleapproachincreasedrecallwithoutchangingmAPwhileusingthenewnetworkcutcomputationby33%.\nMethod data mAP aero bike bird boatbottle bus car cat chair cow table dog horsembikepersonplantsheep sofa train tv\nFastR-CNN[5] 07++12 68.4 82.378.470.852.3 38.7 77.871.689.3 44.2 73.0 55.0 87.5 80.5 80.8 72.0 35.1 68.3 65.7 80.4 64.2\nFasterR-CNN[15] 07++12 70.4 84.979.874.353.9 49.8 77.575.988.5 45.6 77.1 55.3 86.9 81.7 80.9 79.6 40.1 72.6 60.9 81.2 61.5\nYOLO[14] 07++12 57.9 77.067.257.738.3 22.7 68.355.981.4 36.2 60.8 48.5 77.2 72.3 71.3 63.5 28.9 52.2 54.8 73.9 50.8\nSSD300[11] 07++12 72.4 85.680.170.557.6 46.2 79.476.189.2 53.0 77.0 60.8 87.0 83.1 82.3 79.4 45.9 75.9 69.5 81.9 67.5\nSSD512[11] 07++12 74.9 87.482.375.859.0 52.6 81.781.590.0 55.4 79.0 59.8 88.4 84.3 84.7 83.3 50.2 78.0 66.3 86.3 72.0\nResNet[6] 07++12 73.8 86.581.677.258.0 51.0 78.676.693.2 48.6 80.4 59.0 92.1 85.3 84.8 80.7 48.1 77.3 66.5 84.7 65.6\nYOLOv2544 07++12 73.4 86.382.074.859.2 51.8 79.876.590.6 52.1 78.2 58.5 89.3 82.5 83.4 81.3 49.1 77.2 62.4 83.8 68.7\nTable4: PASCALVOC2012testdetectionresults. YOLOv2performsonparwithstate-of-the-artdetectorslikeFaster\nR-CNNwithResNetandSSD512andis2−10×faster.\nmaximizeperformancewedesignYOLOv2tobefastfrom Table 6. Darknet-19 only requires 5.58 billion operations\nthegroundup. toprocessanimageyetachieves72.9%top-1accuracyand\nMostdetectionframeworksrelyonVGG-16asthebase 91.2%top-5accuracyonImageNet.\nfeatureextractor[17].VGG-16isapowerful,accurateclas- Training for classification. We train the network on\nsification network but it is needlessly complex. The con- thestandardImageNet1000classclassificationdatasetfor\nvolutional layers of VGG-16 require 30.69 billion floating 160epochsusingstochasticgradientdescentwithastarting\npoint operations for a single pass over a single image at learningrateof0.1,polynomialratedecaywithapowerof\n224×224resolution. 4,weightdecayof0.0005andmomentumof0.9usingthe\nTheYOLOframeworkusesacustomnetworkbasedon Darknet neural network framework [13]. During training\ntheGooglenetarchitecture[19]. Thisnetworkisfasterthan weusestandarddataaugmentationtricksincludingrandom\nVGG-16, only using 8.52 billion operations for a forward crops,rotations,andhue,saturation,andexposureshifts.\npass. However, it’s accuracy is slightly worse than VGG- As discussed above, after our initial training on images\n16. Forsingle-crop,top-5accuracyat224×224,YOLO’s at224×224wefinetuneournetworkatalargersize,448.\ncustommodelgets88.0%ImageNetcomparedto90.0%for Forthisfinetuningwetrainwiththeaboveparametersbut\nVGG-16. foronly10epochsandstartingatalearningrateof10−3.At\nDarknet-19. We propose a new classification model to thishigherresolutionournetworkachievesatop-1accuracy\nbe used as the base of YOLOv2. Our model builds off of of76.5%andatop-5accuracyof93.3%.\nprior work on network design as well as common knowl- Trainingfordetection. Wemodifythisnetworkforde-\nedgeinthefield. SimilartotheVGGmodelsweusemostly tectionbyremovingthelastconvolutionallayerandinstead\n3×3 filters and double the number of channels after ev- adding on three 3×3 convolutional layers with 1024 fil-\nery pooling step [17]. Following the work on Network in terseachfollowedbyafinal1×1convolutionallayerwith\nNetwork(NIN)weuseglobalaveragepoolingtomakepre- thenumberofoutputsweneedfordetection. ForVOCwe\ndictionsaswellas1×1filterstocompressthefeaturerep- predict5boxeswith5coordinateseachand20classesper\nresentation between 3×3 convolutions [9]. We use batch boxso125filters.Wealsoaddapassthroughlayerfromthe\nnormalization to stabilize training, speed up convergence, final 3×3×512 layer to the second to last convolutional\nandregularizethemodel[7]. layersothatourmodelcanusefinegrainfeatures.\nOurfinalmodel,calledDarknet-19,has19convolutional We train the network for 160 epochs with a starting\nlayers and 5 maxpooling layers. For a full description see learningrateof10−3,dividingitby10at60and90epochs.\n5",
+      "tables": [
+        [
+          [
+            "",
+            "(cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88)\n(cid:88) (cid:88) (cid:88) (cid:88) (cid:88) (cid:88)\n(cid:88) (cid:88) (cid:88) (cid:88) (cid:88)\n(cid:88) (cid:88)\n(cid:88) (cid:88) (cid:88) (cid:88)\n(cid:88) (cid:88) (cid:88)\n(cid:88) (cid:88) (cid:88)\n(cid:88) (cid:88)\n(cid:88)"
+          ]
+        ],
+        [
+          [
+            "07++12\n07++12\n07++12\n07++12\n07++12\n07++12",
+            "68.4\n70.4\n57.9\n72.4\n74.9\n73.8"
+          ]
+        ]
+      ]
+    },
+    {
+      "page_num": 6,
+      "text": "0.5:0.95 0.5 0.75 S M L 1 10 100 S M L\nFastR-CNN[5] train 19.7 35.9 - - - - - - - - - -\nFastR-CNN[1] train 20.5 39.919.44.120.035.821.329.530.1 7.3 32.152.0\nFasterR-CNN[15] trainval 21.9 42.7 - - - - - - - - - -\nION[1] train 23.6 43.223.66.424.138.323.232.733.510.137.753.6\nFasterR-CNN[10] trainval 24.2 45.323.57.726.437.123.834.034.612.038.554.4\nSSD300[11] trainval35k 23.2 41.223.45.323.239.622.533.235.3 9.6 37.656.5\nSSD512[11] trainval35k 26.8 46.527.89.028.941.924.837.539.814.043.559.0\nYOLOv2[11] trainval35k 21.6 44.019.25.022.435.520.731.633.3 9.8 36.554.4\nTable5: ResultsonCOCOtest-dev2015. Tableadaptedfrom[11]\nType Filters Size/Stride Output This approach presents a few challenges. Detection\nConvolutional 32 3×3 224×224\nMaxpool 2×2/2 112×112 datasetshaveonlycommonobjectsandgenerallabels,like\nConvolutional 64 3×3 112×112 “dog”or“boat”. Classificationdatasetshaveamuchwider\nMaxpool 2×2/2 56×56\nConvolutional 128 3×3 56×56 anddeeperrangeoflabels. ImageNethasmorethanahun-\nConvolutional 64 1×1 56×56 dredbreedsofdog,including“Norfolkterrier”,“Yorkshire\nConvolutional 128 3×3 56×56\nMaxpool 2×2/2 28×28 terrier”, and “Bedlington terrier”. If we want to train on\nConvolutional 256 3×3 28×28 bothdatasetsweneedacoherentwaytomergetheselabels.\nConvolutional 128 1×1 28×28\nConvolutional 256 3×3 28×28 Most approaches to classification use a softmax layer\nMaxpool 2×2/2 14×14\nacrossallthepossiblecategoriestocomputethefinalprob-\nConvolutional 512 3×3 14×14\nConvolutional 256 1×1 14×14 ability distribution. Using a softmax assumes the classes\nConvolutional 512 3×3 14×14\naremutuallyexclusive. Thispresentsproblemsforcombin-\nConvolutional 256 1×1 14×14\nConvolutional 512 3×3 14×14 ing datasets, for example you would not want to combine\nMaxpool 2×2/2 7×7\nImageNetandCOCOusingthismodelbecausetheclasses\nConvolutional 1024 3×3 7×7\nConvolutional 512 1×1 7×7 “Norfolkterrier”and“dog”arenotmutuallyexclusive.\nConvolutional 1024 3×3 7×7\nConvolutional 512 1×1 7×7 Wecouldinsteaduseamulti-labelmodeltocombinethe\nConvolutional 1024 3×3 7×7 datasetswhichdoesnotassumemutualexclusion. Thisap-\nConvolutional 1000 1×1 7×7 proachignoresallthestructurewedoknowaboutthedata,\nAvgpool Global 1000\nSoftmax for example that all of the COCO classes are mutually ex-\nclusive.\nHierarchicalclassification. ImageNetlabelsarepulled\nTable6: Darknet-19.\nfromWordNet,alanguagedatabasethatstructuresconcepts\nandhowtheyrelate[12].InWordNet,“Norfolkterrier”and\n“Yorkshireterrier”arebothhyponymsof“terrier”whichis\nWe use a weight decay of 0.0005 and momentum of 0.9.\natypeof“huntingdog”,whichisatypeof“dog”,whichis\nWeuseasimilardataaugmentationtoYOLOandSSDwith\na“canine”,etc. Mostapproachestoclassificationassumea\nrandomcrops,colorshifting,etc. Weusethesametraining\nflatstructuretothelabelshoweverforcombiningdatasets,\nstrategyonCOCOandVOC.\nstructureisexactlywhatweneed.\nWordNetisstructuredasadirectedgraph,notatree,be-\n4.Stronger\ncause language is complex. For example a “dog” is both\nWe propose a mechanism for jointly training on classi- a type of “canine” and a type of “domestic animal” which\nfication and detection data. Our method uses images la- arebothsynsetsinWordNet. Insteadofusingthefullgraph\nbelled for detection to learn detection-specific information structure,wesimplifytheproblembybuildingahierarchi-\nlike bounding box coordinate prediction and objectness as caltreefromtheconceptsinImageNet.\nwellashowtoclassifycommonobjects.Itusesimageswith To build this tree we examine the visual nouns in Ima-\nonlyclasslabelstoexpandthenumberofcategoriesitcan geNetandlookattheirpathsthroughtheWordNetgraphto\ndetect. therootnode,inthiscase“physicalobject”. Manysynsets\nDuringtrainingwemiximagesfrombothdetectionand onlyhaveonepaththroughthegraphsofirstweaddallof\nclassification datasets. When our network sees an image those paths to our tree. Then we iteratively examine the\nlabelled for detection we can backpropagate based on the concepts we have left and add the paths that grow the tree\nfull YOLOv2 loss function. When it sees a classification byaslittleaspossible. Soifaconcepthastwopathstothe\nimage we only backpropagate loss from the classification- rootandonepathwouldaddthreeedgestoourtreeandthe\nspecificpartsofthearchitecture. otherwouldonlyaddoneedge,wechoosetheshorterpath.\n6",
+      "tables": [
+        [
+          [
+            "train\ntrain\ntrainval\ntrain\ntrainval\ntrainval35k\ntrainval35k",
+            "19.7 35.9 -\n20.5 39.919.4\n21.9 42.7 -\n23.6 43.223.6\n24.2 45.323.5\n23.2 41.223.4\n26.8 46.527.8",
+            "- - -\n4.120.035.8\n- - -\n6.424.138.3\n7.726.437.1\n5.323.239.6\n9.028.941.9",
+            "- - -\n21.329.530.1\n- - -\n23.232.733.5\n23.834.034.6\n22.533.235.3\n24.837.539.8"
+          ]
+        ],
+        [
+          [
+            "32\n64\n128\n64\n128\n256\n128\n256\n512\n256\n512\n256\n512\n1024\n512\n1024\n512\n1024",
+            "3×3\n2×2/2\n3×3\n2×2/2\n3×3\n1×1\n3×3\n2×2/2\n3×3\n1×1\n3×3\n2×2/2\n3×3\n1×1\n3×3\n1×1\n3×3\n2×2/2\n3×3\n1×1\n3×3\n1×1\n3×3"
+          ]
+        ]
+      ]
+    },
+    {
+      "page_num": 7,
+      "text": "ThefinalresultisWordTree,ahierarchicalmodelofvi-\nImagenet 1k\nsualconcepts. ToperformclassificationwithWordTreewe\nsoftmax\npredictconditionalprobabilitiesateverynodefortheprob-\nabilityofeachhyponymofthatsynsetgiventhatsynset.For\n.9.86.\nexample,atthe“ P te P r r ( r r Y ie ( o N r” rk o n s rf o h o d i l r e k e w t t e e e r r r r p i i e e re r r | | d t t e e ic r r t r r : i ie er r ) ) kit f E o n x glis S h i b s e e r t i A t a u e n s r t h r u a E s l n k i g y a l n i s g t h r e e r s y r p i r w l e i h e r n a s g l s e e e r r E g p y a p n t d i i a a b n e x ca P t ersia c n o u c g a a t r rubber s t e o r l a e s c e a r rbonara\nPr(Bedlingtonterrier|terrier) WordTree1k\nsoftmax softmax softmax\n...\nsoftmax softmax\n.13.55.\nt t i h c e u\nI\nl r\nf\na o\nw\nr o\ne\nt no n\nw\nd o\na\ne d\nn\ne w\nt\na\nt\ne\no\nnd s\nc\ni\no\nm m\nm\np u\np\nl l y\nu\nti\nt\np f\ne\no ly\nt\nl\nh\nlo t\ne\no w\na\nc\nb\nt o\ns\nh n\no\ne d\nlu\np it\nt\na i\ne\no th\np\nn\nr\na t\no\nl h\nb\nr p\na\no r\nb\nu o\ni\ng b\nli\nh a\nt\nb\ny\nt i h l\nf\ni e\no\nti\nr\nt e r\na\ns e .\np\ne\na\nS t\nr\no o\n- thing matter object phenom b\ne\no\nn\nd\no\ny\nn p\nb\na\no\nr\nd\nt\ny\no\nh\nf\ne a\nw\nd\nat\nh\ne\na\nr\nir vein mouth ocean cloud snow wave\nif we want to know if a picture is of a Norfolk terrier we\ncompute: Figure 5: Prediction on ImageNet vs WordTree. Most Ima-\ngeNetmodelsuseonelargesoftmaxtopredictaprobabilitydistri-\nbution. UsingWordTreeweperformmultiplesoftmaxoperations\nPr(Norfolkterrier)=Pr(Norfolkterrier|terrier) overco-hyponyms.\n∗Pr(terrier|huntingdog)\n∗...∗\nandthetreeofprobabilities.Wetraversethetreedown,tak-\n∗Pr(mammal|Pr(animal) ingthehighestconfidencepathateverysplituntilwereach\n∗Pr(animal|physicalobject) somethresholdandwepredictthatobjectclass.\nDataset combination with WordTree. We can use\nForclassificationpurposesweassumethatthetheimage WordTree to combine multiple datasets together in a sen-\ncontainsanobject: Pr(physicalobject)=1. siblefashion. Wesimplymapthecategoriesinthedatasets\nTovalidatethisapproachwetraintheDarknet-19model tosynsetsinthetree. Figure6showsanexampleofusing\nonWordTreebuiltusingthe1000classImageNet. Tobuild WordTreetocombinethelabelsfromImageNetandCOCO.\nWordTree1kweaddinalloftheintermediatenodeswhich WordNetisextremelydiversesowecanusethistechnique\nexpandsthelabelspacefrom1000to1369. Duringtraining withmostdatasets.\nwepropagategroundtruthlabelsupthetreesothatifanim- Joint classification and detection. Now that we can\nageislabelledasa“Norfolkterrier”italsogetslabelledas combine datasets using WordTree we can train our joint\na“dog”anda“mammal”,etc. Tocomputetheconditional model on classification and detection. We want to train\nprobabilitiesourmodelpredictsavectorof1369valuesand an extremely large scale detector so we create our com-\nwecomputethesoftmaxoverallsysnsetsthatarehyponyms bined dataset using the COCO detection dataset and the\nofthesameconcept,seeFigure5. top 9000 classes from the full ImageNet release. We also\nUsing the same training parameters as before, our hi- needtoevaluateourmethodsoweaddinanyclassesfrom\nerarchical Darknet-19 achieves 71.9% top-1 accuracy and theImageNetdetectionchallengethatwerenotalreadyin-\n90.4%top-5accuracy. Despiteadding369additionalcon- cluded. The corresponding WordTree for this dataset has\nceptsandhavingournetworkpredictatreestructureourac- 9418classes. ImageNetisamuchlargerdatasetsowebal-\ncuracy only drops marginally. Performing classification in ancethedatasetbyoversamplingCOCOsothatImageNet\nthismanneralsohassomebenefits. Performancedegrades isonlylargerbyafactorof4:1.\ngracefullyonneworunknownobjectcategories. Forexam- UsingthisdatasetwetrainYOLO9000. Weusethebase\nple, if the network sees a picture of a dog but is uncertain YOLOv2architecturebutonly3priorsinsteadof5tolimit\nwhat type of dog it is, it will still predict “dog” with high the output size. When our network sees a detection image\nconfidence but have lower confidences spread out among webackpropagatelossasnormal.Forclassificationloss,we\nthehyponyms. onlybackpropagatelossatorabovethecorrespondinglevel\nThis formulation also works for detection. Now, in- ofthelabel. Forexample,ifthelabelis“dog”wedoassign\nstead of assuming every image has an object, we use any error to predictions further down in the tree, “German\nYOLOv2’s objectness predictor to give us the value of Shepherd” versus “Golden Retriever”, because we do not\nPr(physicalobject). Thedetectorpredictsaboundingbox havethatinformation.\n7",
+      "tables": [
+        [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "",
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "softmax",
+            null,
+            null,
+            null
+          ],
+          [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
+        ],
+        [
+          [
+            "",
+            "",
+            ""
+          ]
+        ],
+        [
+          [
+            null,
+            null,
+            null,
+            null,
+            "softmax",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "",
+            null,
+            null,
+            "",
+            null,
+            null,
+            "",
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "",
+            "softmax",
+            null,
+            "",
+            "",
+            null,
+            "",
+            "softmax",
+            null,
+            null,
+            "",
+            null
+          ],
+          [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            null,
+            ""
+          ]
+        ],
+        [
+          [
+            "",
+            ""
+          ]
+        ]
+      ]
+    },
+    {
+      "page_num": 8,
+      "text": "diaper 0.0\nCOCO\nhorizontalbar 0.0\nrubbereraser 0.0\n.....\nsunglasses 0.0\nairplaneapplebackpackbanana bat bear bed bench bicycle bird 70 zebra\nswimmingtrunks 0.0\nImageNet ...\nredpanda 50.7\nfox 52.1\n.....\nAfghan African African African African African Airedale American American American 22k zucchini koalabear 54.3\nhound chameleoncrocodileelephant grey hunting dog alligatorblack bearchameleon\ntiger 61.0\nWordTree armadillo 61.7\nphysical object\nanimal artifact natural object phenomenon\nTable 7: YOLO9000 Best and Worst Classes on ImageNet.\ncat dog fish vehicle equipment plant fungus TheclasseswiththehighestandlowestAPfromthe156weakly\nsupervisedclasses.YOLO9000learnsgoodmodelsforavarietyof\nground water air animalsbutstruggleswithnewclasseslikeclothingorequipment.\nvascular\nplant\ntabby Persian houseplant\ncar airplane\nNewanimalsareeasiertolearnbecausetheobjectnesspre-\ndictions generalize well from the animals in COCO. Con-\nversely, COCO does not have bounding box label for any\nbiplane jet airbus stealth golden potato felt sea American\nfighter fern fern fern lavendertwinflower typeofclothing,onlyforperson,soYOLO9000strugglesto\nmodelcategorieslike“sunglasses”or“swimmingtrunks”.\nFigure6:CombiningdatasetsusingWordTreehierarchy.Us-\ningtheWordNetconceptgraphwebuildahierarchicaltreeofvi-\n5.Conclusion\nsualconcepts. Thenwecanmergedatasetstogetherbymapping\ntheclassesinthedatasettosynsetsinthetree.Thisisasimplified\nviewofWordTreeforillustrationpurposes. We introduce YOLOv2 and YOLO9000, real-time de-\ntection systems. YOLOv2 is state-of-the-art and faster\nthan other detection systems across a variety of detection\nWhenitseesaclassificationimageweonlybackpropa- datasets. Furthermore, it can be run at a variety of image\ngateclassificationloss.Todothiswesimplyfindthebound- sizestoprovideasmoothtradeoffbetweenspeedandaccu-\ning box that predicts the highest probability for that class racy.\nandwecomputethelossonjustitspredictedtree. Wealso YOLO9000isareal-timeframeworkfordetectionmore\nassume that the predicted box overlaps what would be the than9000objectcategoriesbyjointlyoptimizingdetection\ngroundtruthlabelbyatleast.3IOUandwebackpropagate andclassification. WeuseWordTreetocombinedatafrom\nobjectnesslossbasedonthisassumption. varioussourcesandourjointoptimizationtechniquetotrain\nUsing this joint training, YOLO9000 learns to find ob- simultaneously on ImageNet and COCO. YOLO9000 is a\njects in images using the detection data in COCO and it strongsteptowardsclosingthedatasetsizegapbetweende-\nlearnstoclassifyawidevarietyoftheseobjectsusingdata tectionandclassification.\nfromImageNet. Manyofourtechniquesgeneralizeoutsideofobjectde-\nWeevaluateYOLO9000ontheImageNetdetectiontask. tection. OurWordTreerepresentationofImageNetoffersa\nThe detection task for ImageNet shares on 44 object cate- richer, moredetailedoutputspaceforimageclassification.\ngorieswithCOCOwhichmeansthatYOLO9000hasonly Datasetcombinationusinghierarchicalclassificationwould\nseen classification data for the majority of the test images, be useful in the classification and segmentation domains.\nnotdetectiondata. YOLO9000gets19.7mAPoverallwith Trainingtechniqueslikemulti-scaletrainingcouldprovide\n16.0mAPonthedisjoint156objectclassesthatithasnever benefitacrossavarietyofvisualtasks.\nseen any labelled detection data for. This mAP is higher For future work we hope to use similar techniques for\nthanresultsachievedbyDPMbutYOLO9000istrainedon weakly supervised image segmentation. We also plan to\ndifferent datasets with only partial supervision [4]. It also improve our detection results using more powerful match-\nissimultaneouslydetecting9000otherobjectcategories,all ingstrategiesforassigningweaklabelstoclassificationdata\ninreal-time. during training. Computer vision is blessed with an enor-\nWhen we analyze YOLO9000’s performance on Ima- mous amount of labelled data. We will continue looking\ngeNetweseeitlearnsnewspeciesofanimalswellbutstrug- for ways to bring different sources and structures of data\ngles with learning categories like clothing and equipment. togethertomakestrongermodelsofthevisualworld.\n8",
+      "tables": []
+    },
+    {
+      "page_num": 9,
+      "text": "References [18] C. Szegedy, S. Ioffe, and V. Vanhoucke. Inception-v4,\ninception-resnet and the impact of residual connections on\n[1] S. Bell, C. L. Zitnick, K. Bala, and R. Girshick. Inside-\nlearning. CoRR,abs/1602.07261,2016. 2\noutside net: Detecting objects in context with skip\n[19] C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. Reed,\npooling and recurrent neural networks. arXiv preprint\nD.Anguelov, D.Erhan, V.Vanhoucke, andA.Rabinovich.\narXiv:1512.04143,2015. 6\nGoing deeper with convolutions. CoRR, abs/1409.4842,\n[2] J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and L. Fei-\n2014. 5\nFei. Imagenet: A large-scale hierarchical image database.\n[20] B.Thomee,D.A.Shamma,G.Friedland,B.Elizalde,K.Ni,\nIn Computer Vision and Pattern Recognition, 2009. CVPR\nD. Poland, D. Borth, and L.-J. Li. Yfcc100m: The new\n2009.IEEEConferenceon,pages248–255.IEEE,2009. 1\ndatainmultimediaresearch. CommunicationsoftheACM,\n[3] M.Everingham,L.VanGool,C.K.Williams,J.Winn,and\n59(2):64–73,2016. 1\nA. Zisserman. The pascal visual object classes (voc) chal-\nlenge. Internationaljournalofcomputervision,88(2):303–\n338,2010. 1\n[4] P. F. Felzenszwalb, R. B. Girshick, and D. McAllester.\nDiscriminativelytraineddeformablepartmodels,release4.\nhttp://people.cs.uchicago.edu/pff/latent-release4/. 8\n[5] R.B.Girshick. FastR-CNN. CoRR,abs/1504.08083,2015.\n4,5,6\n[6] K.He,X.Zhang,S.Ren,andJ.Sun. Deepresiduallearn-\ningforimagerecognition.arXivpreprintarXiv:1512.03385,\n2015. 2,4,5\n[7] S.IoffeandC.Szegedy. Batchnormalization: Accelerating\ndeep network training by reducing internal covariate shift.\narXivpreprintarXiv:1502.03167,2015. 2,5\n[8] A. Krizhevsky, I. Sutskever, and G. E. Hinton. Imagenet\nclassification with deep convolutional neural networks. In\nAdvances in neural information processing systems, pages\n1097–1105,2012. 2\n[9] M.Lin, Q.Chen, andS.Yan. Networkinnetwork. arXiv\npreprintarXiv:1312.4400,2013. 5\n[10] T.-Y.Lin,M.Maire,S.Belongie,J.Hays,P.Perona,D.Ra-\nmanan,P.Dolla´r,andC.L.Zitnick. Microsoftcoco: Com-\nmon objects in context. In European Conference on Com-\nputerVision,pages740–755.Springer,2014. 1,6\n[11] W.Liu,D.Anguelov,D.Erhan,C.Szegedy,andS.E.Reed.\nSSD:singleshotmultiboxdetector. CoRR,abs/1512.02325,\n2015. 4,5,6\n[12] G.A.Miller,R.Beckwith,C.Fellbaum,D.Gross,andK.J.\nMiller.Introductiontowordnet:Anon-linelexicaldatabase.\nInternational journal of lexicography, 3(4):235–244, 1990.\n6\n[13] J. Redmon. Darknet: Open source neural networks in c.\nhttp://pjreddie.com/darknet/,2013–2016. 5\n[14] J. Redmon, S. Divvala, R. Girshick, and A. Farhadi. You\nonly look once: Unified, real-time object detection. arXiv\npreprintarXiv:1506.02640,2015. 4,5\n[15] S. Ren, K. He, R. Girshick, and J. Sun. Faster r-cnn: To-\nwards real-time object detection with region proposal net-\nworks. arXivpreprintarXiv:1506.01497, 2015. 2, 3, 4, 5,\n6\n[16] O. Russakovsky, J. Deng, H. Su, J. Krause, S. Satheesh,\nS. Ma, Z. Huang, A. Karpathy, A. Khosla, M. Bernstein,\nA. C. Berg, and L. Fei-Fei. ImageNet Large Scale Visual\nRecognitionChallenge. InternationalJournalofComputer\nVision(IJCV),2015. 2\n[17] K. Simonyan and A. Zisserman. Very deep convolutional\nnetworksforlarge-scaleimagerecognition. arXivpreprint\narXiv:1409.1556,2014. 2,5\n9",
+      "tables": []
+    }
+  ],
+  "images": [
+    {
+      "page_num": 1,
+      "image_index": 1,
+      "width": 1530,
+      "height": 3300,
+      "ext": "jpeg",
+      "path": "C:\\Users\\administrator\\Desktop\\2026数模国赛\\选题D\\yolo系列论文\\YOLOv2_explainer\\images\\page1_img1.jpeg"
+    }
+  ],
+  "source_file": "YOLOv2_YOLO9000_Better_Faster_Stronger.pdf"
+}
