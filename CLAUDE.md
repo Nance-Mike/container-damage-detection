@@ -79,8 +79,8 @@ This script performs two compilation passes to generate the final PDF from `main
 - Data augmentation: mosaic=1.0, copy-paste=0.0
 
 ### Improved Model
-- YOLOv8s/m backbone
-- Extended training: 200 epochs
+- YOLOv8s backbone
+- Extended training: 150 epochs
 - Enhanced augmentation: mosaic=1.0, copy-paste=0.5
 - Learning rate scheduling with cosine decay
 
