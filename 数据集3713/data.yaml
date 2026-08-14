@@ -1,0 +1,11 @@
+# 集装箱缺陷检测数据集配置
+path: C:/Users/administrator/Desktop/2026数模国赛/选题D/数据集3713
+train: images/train
+val: images/test
+test: images/test
+
+# 类别
+names:
+  0: Dent
+  1: Hole
+  2: Rusty
