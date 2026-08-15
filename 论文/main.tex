@@ -37,6 +37,29 @@
 \usepackage{enumitem}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+\definecolor{CUMCMBlue}{HTML}{0072B2}
+\definecolor{CUMCMOrange}{HTML}{E69F00}
+\definecolor{CUMCMGreen}{HTML}{009E73}
+\definecolor{CUMCMRed}{HTML}{D55E00}
+\definecolor{CUMCMBg}{HTML}{F7F7F7}
+\definecolor{CUMCMBorder}{HTML}{CCCCCC}
+\definecolor{CUMCMCharcoal}{HTML}{333333}
+\definecolor{CUMCMArrow}{HTML}{4D4D4D}
+\definecolor{CUMCMGrey}{HTML}{666666}
+\tikzset{
+  figbox/.style={draw=CUMCMBorder, fill=white, rounded corners=2pt,
+                 align=center, font=\zihao{-5}, text=CUMCMCharcoal,
+                 minimum height=0.95cm, inner sep=4pt},
+  corebox/.style={figbox, draw=CUMCMBlue, line width=0.7pt},
+  altbox/.style={figbox, draw=CUMCMOrange, line width=0.7pt},
+  outbox/.style={figbox, draw=CUMCMGreen, line width=0.7pt},
+  warnbox/.style={figbox, draw=CUMCMRed, line width=0.7pt},
+  stagetitle/.style={font=\zihao{-6}\sffamily, text=CUMCMBlue},
+  stagetitlealt/.style={font=\zihao{-6}\sffamily, text=CUMCMOrange},
+  stagetitleout/.style={font=\zihao{-6}\sffamily, text=CUMCMGreen},
+  figarr/.style={-{Stealth[length=2mm]}, draw=CUMCMArrow, thick},
+  figannote/.style={font=\zihao{-6}, text=CUMCMGrey},
+}
 \usepackage{caption}
 \DeclareCaptionFont{wuhao}{\zihao{5}}
 \DeclareCaptionFont{hei}{\heiti}

@@ -28,6 +28,8 @@ This is a mathematical modeling competition project (2026 CUMCM Topic D) for int
 
 ## Key Commands
 
+> 本机 Python 解释器为 `E:\python2025\python.exe`；以下命令以 `python` 代指。
+
 ### Model Training
 
 ```bash
@@ -70,6 +72,8 @@ cd 论文
 ```
 
 This script performs two compilation passes to generate the final PDF from `main.tex`.
+Figure restyling scripts are `论文/restyle_figures.py`, `论文/restyle_montages.py`
+and `论文/regenerate_weibull.py`; English AI-image prompts live in `论文/配图提示词.md`.
 
 ## Model Architecture and Training Strategy
 

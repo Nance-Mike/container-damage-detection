@@ -2,7 +2,34 @@
 
 \subsection{问题描述与建模思路}
 
-问题一要求判断集装箱图像是否存在缺陷，即二分类任务。其核心困难在于训练集全部为含缺陷图像，缺乏负样本，无法直接训练有监督二分类网络。本文采用“检测—判别”两阶段框架：首先由检测网络提取图像的“最大检测置信度”统计量，然后利用极值理论对该统计量的分布进行建模，将置信度映射为缺陷概率，并在验证集上确定最优判别阈值。
+问题一要求判断集装箱图像是否存在缺陷，即二分类任务。其核心困难在于训练集全部为含缺陷图像，缺乏负样本，无法直接训练有监督二分类网络。本文采用“检测—判别”两阶段框架（图 \ref{fig:evt_pipeline}）：首先由检测网络提取图像的“最大检测置信度”统计量，然后利用极值理论对该统计量的分布进行建模，将置信度映射为缺陷概率，并在验证集上确定最优判别阈值。
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=0.55cm and 0.5cm,
+  every node/.style={font=\zihao{-5}},
+]
+  \node[corebox] (a) {YOLOv8s 检测推理\\每图 $m_i$ 个检测框\\置信度 $c_{ij}$};
+  \node[altbox, right=of a] (b) {图像级最大置信度\\$s_i=\max_j c_{ij}$};
+  \node[altbox, right=of b] (c) {Weibull 极值拟合\\$F(s;k,\lambda)$};
+  \node[altbox, right=of c] (d) {缺陷概率映射\\$P_{\mathrm{defect}}=F(s_x)$};
+  \node[outbox, right=of d] (e) {阈值判别\\有缺陷 / 无缺陷};
+
+  \node[stagetitle, above=0.12cm of a] {检测阶段};
+  \node[stagetitlealt, above=0.12cm of c] {EVT 建模};
+  \node[stagetitleout, above=0.12cm of e] {判别};
+
+  \draw[figarr] (a) -- (b);
+  \draw[figarr] (b) -- (c);
+  \draw[figarr] (c) -- (d);
+  \draw[figarr] (d) -- (e);
+  \draw[figarr, dashed] (e.south) .. controls +(0,-0.7) and +(0,-0.7) .. (c.south);
+  \node[figannote, below=0.55cm of d] {F1 重标定（需真实负样本）};
+\end{tikzpicture}}
+\caption{基于极值理论的“检测—判别”两阶段流程}\label{fig:evt_pipeline}
+\end{figure}
 
 该思路的可行性建立在以下统计事实之上：含缺陷图像通常存在至少一个高置信度检测框，而无缺陷图像要么无检测框输出，要么仅存在低置信度误检。因此，“最大检测置信度”这一统计量在两类图像间具有天然的可分性，问题一由此转化为对置信度极值分布的单变量统计建模问题\cite{fisher1928,coles2001,kotz2000}，避免了为“无缺陷”类别构造大规模伪样本的必要性。
 

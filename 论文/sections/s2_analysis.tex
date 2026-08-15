@@ -33,39 +33,48 @@
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-  box/.style={draw, rounded corners=2pt, minimum width=2.45cm, minimum height=1.0cm,
-              align=center, font=\zihao{-5}},
-  arr/.style={-{Stealth[length=2.5mm]}, thick},
+  node distance=0.55cm and 0.5cm,
   every node/.style={font=\zihao{-5}}
 ]
-  \node[box] (d1) {原始数据集\\3713 张图像};
-  \node[box, right=0.6cm of d1] (d2) {分层抽样划分\\训练 2806 + 验证 494};
-  \node[box, right=0.6cm of d2] (d3) {负样本构造\\600 张无破损图像};
-  \node[box, right=0.6cm of d3] (d4) {数据增强\\HSV/Mosaic/Copy-Paste};
-  \node[box, right=0.6cm of d4] (m1) {YOLOv8s\\检测模型};
+  % 数据准备（上排）
+  \node[corebox] (d1) {原始数据集\\3713 张图像};
+  \node[corebox, right=of d1] (d2) {分层抽样划分\\训练 2806\\验证 494};
+  \node[corebox, right=of d2] (d3) {负样本构造\\600 张无破损图};
+  \node[corebox, right=of d3] (d4) {数据增强\\HSV/Mosaic\\Copy-Paste};
 
-  \node[box, below=1.0cm of m1] (t1) {测试集 413 张};
-  \node[box, below=1.0cm of d1] (r1) {test\_result.csv\\定位与类别};
-  \node[box, below=1.0cm of r1] (r2) {最大置信度 $s_i$};
-  \node[box, below=1.0cm of r2] (r3) {Weibull 拟合};
-  \node[box, below=1.0cm of r3] (r4) {缺陷概率 $P_{\mathrm{defect}}$};
-  \node[box, below=1.0cm of r4] (r5) {二分类判别结果};
+  % 检测支路
+  \node[corebox, below=of d4] (m1) {YOLOv8s\\检测模型\\P3/P4/P5};
+  \node[altbox, left=of m1] (ti) {测试集 413 张};
+  \node[outbox, right=of m1] (r1) {test\_result.csv\\定位与类别};
 
-  \node[box, below=1.0cm of d4] (e1) {多维度评估};
+  % EVT 判别支路
+  \node[altbox, below=of r1] (r2) {最大置信度\\$s_i=\max_j c_{ij}$};
+  \node[altbox, right=of r2] (r3) {Weibull 拟合\\$(k,\lambda)$};
+  \node[altbox, right=of r3] (r4) {缺陷概率\\$P_{\mathrm{defect}}$};
+  \node[outbox, right=of r4] (r5) {二分类\\判别结果};
 
-  \draw[arr] (d1) -- (d2);
-  \draw[arr] (d2) -- (d3);
-  \draw[arr] (d3) -- (d4);
-  \draw[arr] (d4) -- (m1);
-  \draw[arr] (t1) -- (m1);
-  \draw[arr] (m1) -- (r1);
-  \draw[arr] (m1) -- (t1);
-  \draw[arr] (r1) -- (r2);
-  \draw[arr] (r2) -- (r3);
-  \draw[arr] (r3) -- (r4);
-  \draw[arr] (r4) -- (r5);
-  \draw[arr] (t1) -- (e1);
-  \draw[arr] (m1) -- (e1);
+  % 评估
+  \node[warnbox, below=of r5] (e1) {多维度评估\\精度/AUC/消融\\鲁棒性/效率/错误};
+
+  % 分节标题
+  \node[stagetitle, above=0.12cm of d1] {数据准备};
+  \node[stagetitle, above=0.12cm of m1] {检测};
+  \node[stagetitlealt, above=0.12cm of r2] {EVT 判别};
+  \node[stagetitleout, right=0.12cm of e1] {评估};
+
+  % 主流程
+  \draw[figarr] (d1) -- (d2);
+  \draw[figarr] (d2) -- (d3);
+  \draw[figarr] (d3) -- (d4);
+  \draw[figarr] (d4) -- (m1);
+  \draw[figarr] (ti) -- (m1);
+  \draw[figarr] (m1) -- (r1);
+  \draw[figarr] (r1) -- (r2);
+  \draw[figarr] (r2) -- (r3);
+  \draw[figarr] (r3) -- (r4);
+  \draw[figarr] (r4) -- (r5);
+  \draw[figarr] (r5) -- (e1);
+  \draw[figarr, dashed] (m1) |- (e1);
 \end{tikzpicture}}
 \caption{总体技术路线图}
 \label{fig:route}

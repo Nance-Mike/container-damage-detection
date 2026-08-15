@@ -8,26 +8,30 @@ YOLOv8 是 Ultralytics 提出的单阶段目标检测框架\cite{jocher2023}，�
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-  block/.style={draw, rounded corners=2pt, minimum height=0.9cm, align=center, font=\zihao{-5}},
-  arr/.style={-{Stealth[length=2.5mm]}, thick},
+  node distance=0.5cm and 0.45cm,
+  every node/.style={font=\zihao{-5}},
 ]
-  \node[block, minimum width=2.2cm] (in) {输入图像\\$640\times640\times3$};
-  \node[block, right=0.6cm of in, minimum width=2.9cm] (bb) {Backbone\\Conv + C2f + SPPF};
-  \node[block, right=0.6cm of bb, minimum width=2.9cm] (nk) {Neck\\PAN-FPN 双向融合};
-  \node[block, right=0.6cm of nk, minimum width=2.6cm] (hd) {检测头\\P3/P4/P5 解耦头};
-  \node[block, right=0.6cm of hd, minimum width=2.0cm] (nm) {NMS\\后处理};
-  \node[block, right=0.6cm of nm, minimum width=2.6cm] (out) {输出\\位置+类别+置信度};
+  \node[figbox] (in) {输入图像\\$640\times640\times3$};
+  \node[corebox, right=of in] (bb) {Backbone\\Conv + C2f + SPPF};
+  \node[altbox, right=of bb] (nk) {Neck\\PAN-FPN 双向融合\\P3/P4/P5};
+  \node[corebox, right=of nk] (hd) {解耦检测头\\P3/P4/P5};
+  \node[corebox, right=of hd] (nm) {NMS\\后处理};
+  \node[outbox, right=of nm] (out) {输出\\位置+类别+置信度};
 
-  \node[block, below=0.55cm of hd, minimum width=4.6cm] (cls) {分类分支：$C$ 类置信度};
-  \node[block, below=0.55cm of cls, minimum width=4.6cm] (reg) {回归分支：$4$ 维框坐标};
+  \node[altbox, below left=0.55cm and 0.2cm of hd] (cls) {分类分支\\$C$ 类置信度};
+  \node[altbox, below right=0.55cm and 0.2cm of hd] (reg) {回归分支\\$4$ 维框坐标 + DFL};
 
-  \draw[arr] (in) -- (bb);
-  \draw[arr] (bb) -- (nk);
-  \draw[arr] (nk) -- (hd);
-  \draw[arr] (hd) -- (nm);
-  \draw[arr] (nm) -- (out);
-  \draw[arr] (hd) -- (cls);
-  \draw[arr] (cls) -- (reg);
+  \node[stagetitle, above=0.12cm of bb] {Backbone};
+  \node[stagetitlealt, above=0.12cm of nk] {Neck};
+  \node[stagetitle, above=0.12cm of hd] {Head};
+
+  \draw[figarr] (in) -- (bb);
+  \draw[figarr] (bb) -- (nk);
+  \draw[figarr] (nk) -- (hd);
+  \draw[figarr] (hd) -- (nm);
+  \draw[figarr] (nm) -- (out);
+  \draw[figarr] (hd) -- (cls);
+  \draw[figarr] (hd) -- (reg);
 \end{tikzpicture}}
 \caption{YOLOv8 网络结构示意图}\label{fig:yolo}
 \end{figure}
@@ -124,7 +128,37 @@ YOLOv8 的总体训练损失由定位损失、分类损失与分布聚焦损失�
   \qquad \alpha_c = \sigma\!\left(\frac{W_1(\mu_c,\bar{\mu})}{\tau}\right),
   \label{eq:wd_focal}
 \end{equation}
-其中 $\sigma$ 为 sigmoid 函数，$\tau$ 为温度参数。该损失以特征空间的几何可分性替代样本频率的逆比例加权，理论上对长尾分布更鲁棒。受竞赛时间限制，本文三组对照实验采用 Ultralytics 默认损失实现，WD-Focal Loss 的完整推导、实现与接口见附录 C，作为后续优化的候选方案。
+其中 $\sigma$ 为 sigmoid 函数，$\tau$ 为温度参数。该损失以特征空间的几何可分性替代样本频率的逆比例加权，理论上对长尾分布更鲁棒，其自适应调制机制如图 \ref{fig:wd_focal} 所示。
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=0.5cm and 0.45cm,
+  every node/.style={font=\zihao{-5}},
+]
+  \node[corebox] (a) {类别特征分布\\$\mu_c$（Dent/Hole/Rusty）};
+  \node[altbox, right=of a] (b) {1-Wasserstein 距离\\$W_1(\mu_c,\bar{\mu})$};
+  \node[altbox, right=of b] (c) {自适应平衡系数\\$\alpha_c=\sigma(W_1/\tau)$};
+  \node[corebox, right=of c] (d) {WD-Focal Loss\\$-\alpha_c(1-p_t)^{\gamma}\log p_t$};
+  \node[outbox, right=of d] (e) {反向传播训练};
+
+  \node[figbox, above=0.55cm of b] (ref) {全局参考分布 $\bar{\mu}$};
+
+  \node[stagetitle, above=0.12cm of a] {特征空间};
+  \node[stagetitlealt, above=0.12cm of c] {自适应加权};
+  \node[stagetitleout, above=0.12cm of e] {训练};
+
+  \draw[figarr] (a) -- (b);
+  \draw[figarr] (b) -- (c);
+  \draw[figarr] (c) -- (d);
+  \draw[figarr] (d) -- (e);
+  \draw[figarr, dashed] (ref) -- (b);
+\end{tikzpicture}}
+\caption{WD-Focal Loss 的自适应调制机制}\label{fig:wd_focal}
+\end{figure}
+
+受竞赛时间限制，本文三组对照实验采用 Ultralytics 默认损失实现，WD-Focal Loss 的完整推导、实现与接口见附录 C，作为后续优化的候选方案。
 
 为检验该候选方案的有效性，本文在赛后补充完成了 WD-Focal Loss 的端到端训练验证（同最终模型配置，150 轮）。首版实现中 $\alpha_c$ 无上限，训练后期各类 $W_1$ 距离相对自适应温度增大，$\alpha_c$ 经 sigmoid 饱和至约 1，负样本权重 $(1-\alpha_c)$ 趋近于 0，模型失去背景抑制并在第 60$\sim$70 轮出现性能崩塌（mAP@0.5:0.95 跌至 0.02$\sim$0.03）；对 $\alpha_c$ 施加 $[0.25,0.75]$ 限幅后崩塌消除，但验证集 mAP@0.5:0.95 仅 0.103，仍显著低于基线（0.205）。值得注意的是，WD-Focal 使 Hole/Dent 两类的 mAP@0.5:0.95 比值由基线的 0.64 升至 1.15，说明 Wasserstein 加权确实将更多权重分配给了少数类 Hole，但其对整体检测精度的负效应表明：聚焦调制在检测场景下的损失尺度（分类梯度占比）需要与框架原有损失重新配平，直接替换不可行。该方向的调参空间（$\gamma$、损失尺度、$\alpha$ 限幅范围）留作后续工作。
 
