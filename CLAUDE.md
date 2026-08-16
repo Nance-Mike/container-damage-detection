@@ -19,7 +19,7 @@ This is a mathematical modeling competition project (2026 CUMCM Topic D) for int
 ├── 论文/                   # LaTeX paper source and build scripts
 ├── 论文/code/              # Copy of source code for paper appendix
 ├── data/                   # Processed dataset configurations
-├── 数据集3713/             # Original dataset (not tracked by git)
+├── 数据集3713/             # Original dataset (tracked in this repo)
 ├── runs/                   # Training outputs and model weights
 ├── results/                # Evaluation results and EVT analysis
 ├── .venv/                  # Virtual environment
@@ -90,11 +90,14 @@ and `论文/regenerate_weibull.py`; English AI-image prompts live in `论文/配
 
 ### Custom Loss Functions
 
-1. **WD-Focal Loss**: Combines Weighted Distance (WD) and Focal Loss for handling class imbalance
-   - Adaptive threshold tau=0 (median of W1 distances)
-   - Updates every 10 epochs during training
-   
-2. **Rusty Class Weighting**: BCE loss with pos_weight=[1.0, 1.0, 1.246] based on class frequency ratio
+1. **WD-Focal Loss**: Combines Wasserstein-distance (W1) weighting and Focal Loss for class
+   imbalance. Adaptive threshold tau=0 (median of W1 distances), alpha clamped to [0.25, 0.75]
+   (v2); updates every 10 epochs. End-to-end result was negative vs. baseline — details in
+   `results/实验记录.md` (the W1 weighting did shift more weight to Hole, as designed).
+
+2. **Rusty Class Weighting**: BCE loss with pos_weight=[1.0, 1.0, 1.246] based on class
+   frequency ratio. Measured result was negative (mAP50-95 −0.033, Rusty AP/recall unchanged):
+   Rusty's bottleneck is class confusion / texture, not sample count.
 
 ### EVT Integration
 The EVT classifier uses maximum confidence scores from:
@@ -113,7 +116,9 @@ Data YAML files are located in `data/processed/` with subdirectories for differe
 
 ## Important Implementation Details
 
-1. **Project Root Reference**: All scripts use `PROJECT_ROOT = Path(__file__).resolve().parents[1]` for relative path resolution
+1. **Project Root Reference**: Key scripts (`train_yolo.py`, `eda.py`, `evt_classifier.py`)
+   resolve the project root with `PROJECT_ROOT = Path(__file__).resolve().parents[1]`;
+   no hardcoded absolute paths remain under `src/`
 2. **Training Checkpoints**: Models save to `runs/{name}/weights/` with `best.pt` and `last.pt`
 3. **Resume Training**: Use `--resume` flag to continue from last checkpoint
 4. **Environment Variable**: `YOLO_CONFIG_DIR` is set to avoid config file conflicts
@@ -131,3 +136,7 @@ Training outputs and evaluation results are stored in:
 - `test_result.csv` - Final predictions for test set
 
 The project includes extensive ablation studies on negative samples, perturbation robustness, and loss function comparisons.
+
+Current state (2026-08-16): all planned experiments are finished and the final model remains
+`improved_with_neg` (mAP50-95 ≈ 0.205, EVT k = 3.064); the 84-page paper passes `verify_pdf`
+with 18 references, and the repository is synced with GitHub `origin/main`.

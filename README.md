@@ -33,7 +33,7 @@ src/       Training, evaluation, EVT and robustness scripts (paper appendix mirr
 results/   Evaluation results, EVT analysis, robustness metrics, experiment log
 优化建议与评价/  Feasibility analysis and audit evidence (Chinese)
 归档/      Archived planning documents
-data/, 数据集3713/, runs/   Datasets and training artifacts — not tracked (see .gitignore)
+data/, 数据集3713/, runs/   Datasets and training artifacts (tracked in this repo)
 ```
 
 ## Quick start
