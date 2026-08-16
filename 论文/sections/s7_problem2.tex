@@ -2,7 +2,7 @@
 
 \subsection{YOLOv8 检测模型}
 
-YOLOv8 是 Ultralytics 提出的单阶段目标检测框架\cite{jocher2023}，采用 anchor-free 解耦检测头设计，整体由 Backbone、Neck 与 Head 三部分组成，其结构示意如图 \ref{fig:yolo} 所示。Backbone 以 C2f 模块堆叠提取多尺度特征，并经 SPPF 池化增强感受野；Neck 采用 PAN-FPN 结构实现自顶向下与自底向上的双向多尺度特征融合，输出 P3、P4、P5 三组特征图；Head 对每个位置直接预测类别与包围框（anchor-free），并通过解耦分支分别进行回归与分类，最后经非极大值抑制（NMS）输出检测结果。
+YOLOv8 是 Ultralytics 提出的单阶段目标检测框架\cite{jocher2023}，采用 anchor-free 解耦检测头设计，整体由 Backbone、Neck 与 Head 三部分组成，其结构示意如图 \ref{fig:yolo} 所示。Backbone 以 C2f 模块堆叠提取多尺度特征，并经 SPPF 池化增强感受野；Neck 采用 PAN-FPN\cite{liu2018panet} 结构实现自顶向下与自底向上的双向多尺度特征融合，输出 P3、P4、P5 三组特征图；Head 对每个位置直接预测类别与包围框（anchor-free），并通过解耦分支分别进行回归与分类，最后经非极大值抑制（NMS）输出检测结果。
 
 \begin{figure}[H]
 \centering
@@ -43,7 +43,7 @@ YOLOv8 的总体训练损失由定位损失、分类损失与分布聚焦损失�
               + \lambda_{\mathrm{dfl}}\mathcal{L}_{\mathrm{dfl}},
   \label{eq:total_loss}
 \end{equation}
-其中定位损失采用 CIoU 损失。对预测框 $B$ 与真实框 $B^{\mathrm{gt}}$，记两者交集与并集的面积分别为 $|B\cap B^{\mathrm{gt}}|$ 与 $|B\cup B^{\mathrm{gt}}|$，则
+其中定位损失采用 CIoU 损失。对预测框 $B$ 与真实框 $B^{\mathrm{gt}}$，记两者交集与并集的面积分别为 $|B\cap B^{\mathrm{gt}}|$ 与 $|B\cup B^{\mathrm{gt}}|$，则交并比（IoU）\cite{lin2014coco}定义为
 \begin{equation}
   \mathrm{IoU} = \frac{|B\cap B^{\mathrm{gt}}|}{|B\cup B^{\mathrm{gt}}|},
   \label{eq:iou}
@@ -53,7 +53,9 @@ YOLOv8 的总体训练损失由定位损失、分类损失与分布聚焦损失�
   + \frac{\rho^{2}(\bm{b},\bm{b}^{\mathrm{gt}})}{c^{2}} + \alpha v,
   \label{eq:ciou}
 \end{equation}
-其中 $\rho(\cdot)$ 为两框中心点的欧氏距离，$c$ 为最小外接矩形对角线长度，$\alpha$ 为平衡系数，$v$ 度量长宽比一致性。分类损失采用二元交叉熵：
+其中 $\rho(\cdot)$ 为两框中心点的欧氏距离，$c$ 为最小外接矩形对角线长度，
+$v=\frac{4}{\pi^{2}}\bigl(\arctan\frac{w^{\mathrm{gt}}}{h^{\mathrm{gt}}}-\arctan\frac{w}{h}\bigr)^{2}$
+度量预测框与真实框的长宽比一致性，$\alpha=\frac{v}{(1-\mathrm{IoU})+v}$ 为平衡系数\cite{zheng2020diou}。分类损失采用二元交叉熵：
 \begin{equation}
   \mathcal{L}_{\mathrm{cls}} = -\bigl[y\log\sigma(z) + (1-y)\log(1-\sigma(z))\bigr],
   \label{eq:bce}

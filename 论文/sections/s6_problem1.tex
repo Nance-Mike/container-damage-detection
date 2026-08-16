@@ -31,7 +31,7 @@
 \caption{基于极值理论的“检测—判别”两阶段流程}\label{fig:evt_pipeline}
 \end{figure}
 
-该思路的可行性建立在以下统计事实之上：含缺陷图像通常存在至少一个高置信度检测框，而无缺陷图像要么无检测框输出，要么仅存在低置信度误检。因此，“最大检测置信度”这一统计量在两类图像间具有天然的可分性，问题一由此转化为对置信度极值分布的单变量统计建模问题\cite{fisher1928,coles2001,kotz2000}，避免了为“无缺陷”类别构造大规模伪样本的必要性。
+该思路的可行性建立在以下统计事实之上：含缺陷图像通常存在至少一个高置信度检测框，而无缺陷图像要么无检测框输出，要么仅存在低置信度误检。因此，“最大检测置信度”这一统计量在两类图像间具有天然的可分性，问题一由此转化为对置信度极值分布的单变量统计建模问题\cite{fisher1928,coles2001,kotz2000}，避免了为“无缺陷”类别构造大规模伪样本的必要性。需要说明的是，图像内候选检测框数量 $m_i$ 随机且各框置信度彼此相关，$s_i$ 并非经典意义下独立同分布序列的块极大值；本文以 Fisher--Tippett--Gnedenko 定理作为工程近似建模依据，其判别有效性由伪负样本校准实验验证。
 
 \subsection{最大置信度统计量}
 
@@ -53,21 +53,23 @@
 \begin{theorem}[Fisher--Tippett--Gnedenko 定理]
 \label{thm:ftg}
 设 $\{X_1,\ldots,X_n\}$ 为独立同分布随机变量序列，$M_n=\max(X_1,\ldots,X_n)$。若存在常数列 $a_n>0$ 与 $b_n$，使得 $(M_n-b_n)/a_n$ 依分布收敛到非退化分布 $G$，则 $G$ 必属于广义极值分布族，即 Gumbel、Fr\'echet 或 Weibull 三种类型之一。
+\cite{fisher1928,coles2001,kotz2000}
 \end{theorem}
 
 \begin{lemma}[Weibull 分布的适用性]
 \label{lem:weibull}
 对于取值有界的随机变量（如 $s_i\in[0,1]$），其块极大值的极限分布属于 Weibull 型。由于 YOLO 置信度满足 $c_{i,j}\in[0,1]$，最大置信度 $s_i$ 同样有界，故采用 Weibull 分布对 $s_i$ 建模具有严格的理论依据。
+\cite{coles2001}
 \end{lemma}
 
 \subsection{Weibull 分布拟合与缺陷概率}
 
-二参数 Weibull 分布的累积分布函数为
+二参数 Weibull 分布的累积分布函数为\cite{coles2001}
 \begin{equation}
   F(s;k,\lambda) = 1-\exp\!\left[-\left(\frac{s}{\lambda}\right)^{k}\right], \qquad s\ge 0,
   \label{eq:weibull_cdf}
 \end{equation}
-其中 $k>0$ 为形状参数，$\lambda>0$ 为尺度参数。给定观测序列 $\mathcal{S}$，其对数似然函数为
+其中 $k>0$ 为形状参数，$\lambda>0$ 为尺度参数。给定观测序列 $\mathcal{S}$，其对数似然函数为\cite{coles2001}
 \begin{equation}
   \ell(k,\lambda) = N\ln k - Nk\ln\lambda + (k-1)\sum_{i=1}^{N}\ln s_i
   - \sum_{i=1}^{N}\left(\frac{s_i}{\lambda}\right)^{k}.
