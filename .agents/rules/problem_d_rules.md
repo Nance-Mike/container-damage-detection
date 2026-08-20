@@ -35,4 +35,4 @@ image_id,class_id,x_center,y_center,width,height
 - `results/`：评估报告与可视化（含 `results/evt*` 问题1判别结果、`results/evt_pseudo_neg_results.txt` 伪负样本校准输出）
 - `论文/`：LaTeX 论文工程（`main.tex` 编译入口，`figures/` 图表，`code/` 附录源码副本；编译：`cd 论文; .\build.ps1`；门禁：`python 论文/scripts/verify_pdf.py 论文/main.pdf`）
 - `数据探索/`：EDA 输出图表
-- `参考论文/`、`yolo系列论文/`：参考资料（只读；`yolo系列论文/paper-notes/` 未入库，用户指定暂不改动）
+- `参考论文/`：参考资料（只读，入库）；`yolo系列论文/`：参考资料（只读，**仅本地保留、不入库**，2026-08-20 用户决定）
