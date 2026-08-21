@@ -105,7 +105,9 @@
   },
 }
 
-% 图表按章编号：图5-1、表6-2
+% 图表按章编号（章内连续）：图5-1、表6-2
+\counterwithin{figure}{section}
+\counterwithin{table}{section}
 \renewcommand{\thefigure}{\thesection-\arabic{figure}}
 \renewcommand{\thetable}{\thesection-\arabic{table}}
 \renewcommand{\theequation}{\arabic{equation}}

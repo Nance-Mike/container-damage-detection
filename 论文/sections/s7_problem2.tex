@@ -202,13 +202,13 @@ $v=\frac{4}{\pi^{2}}\bigl(\arctan\frac{w^{\mathrm{gt}}}{h^{\mathrm{gt}}}-\arctan
 \begin{enumerate}[leftmargin=2.2em,itemsep=2pt]
   \item {\heiti 负样本数量：}将负样本数分别设为 300、600、900 训练。验证集最优 mAP@0.5:0.95 依次为 0.206、0.205、0.202，差异仅约 0.004；但问题一判别中 Weibull 形状参数 $k$ 依次为 2.879、3.064、2.974，600 幅负样本的置信度分布分离度最高。因此原方案以 600 幅负样本为最终口径同时兼顾检测精度与判别鲁棒性，取舍得到验证；
   \item {\heiti Rusty 类加权：}以 Dent 为基准的逆频率权重（$pos\_weight=3934/3158\approx1.246$）对 Rusty 正样本加权训练，验证集 mAP@0.5:0.95 为 0.171，Rusty 类 mAP@0.5:0.95 由 0.129 略降至 0.114，整体显著下降。该负结果印证了 Rusty 短板来自类间外观混淆而非样本量，单纯损失加权难以弥补；
-  \item {\heiti P2 高分辨率检测头：}采用 \texttt{yolov8s-p2}（新增 $160\times160$ 特征图检测头）训练，验证集 mAP@0.5:0.95 为 0.209；Hole 类 mAP@0.5:0.95 由 0.190 升至 0.210、召回率由 0.407 升至 0.453，小目标收益显著，但整体收益有限（+0.005）；
+  \item {\heiti P2 高分辨率检测头：}采用 \texttt{yolov8s-p2}（新增 $160\times160$ 特征图检测头）训练，验证集 mAP@0.5:0.95 为 0.209；Hole 类 mAP@0.5:0.95 由 0.190 升至 0.210（+0.021）、召回率由 0.407 升至 0.453，小目标收益显著，但整体收益有限（+0.005）；
   \item {\heiti 测试时增强（TTA）：}对最终模型启用多尺度测试增强，mAP@0.5:0.95 由 0.204 升至 0.215（+0.011），三类别均提升，且无需重新训练，是性价比最高的改进方向。
 \end{enumerate}
 
 \subsubsection{检测结果可视化}
 
-最终模型在验证集上的 PR 曲线与归一化混淆矩阵如图 \ref{fig:pr} 与 \ref{fig:cm} 所示。PR 曲线显示 Dent 类精度-召回权衡最优，Hole 类次之，Rusty 类相对偏弱；混淆矩阵表明主要误检发生在 Rusty 与背景之间。图 \ref{fig:val_labels} 与图 \ref{fig:val_pred} 给出同一批验证图像的标注与预测对比，图 \ref{fig:detect_samples} 给出测试集检测结果示例，模型能够准确定位多类缺陷并输出类别与置信度。
+最终模型在验证集上的 PR 曲线与归一化混淆矩阵分别如图 \ref{fig:pr} 与图 \ref{fig:cm} 所示。PR 曲线显示 Dent 类精度-召回权衡最优，Hole 类次之，Rusty 类相对偏弱；混淆矩阵表明主要误检发生在 Rusty 与背景之间。图 \ref{fig:val_labels} 与图 \ref{fig:val_pred} 给出同一批验证图像的标注与预测对比，图 \ref{fig:detect_samples} 给出测试集检测结果示例，模型能够准确定位多类缺陷并输出类别与置信度。
 
 \begin{figure}[H]
 \centering

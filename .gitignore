@@ -11,3 +11,5 @@ yolo系列论文/
 论文/*.aux
 论文/*.log
 论文/*.out
+
+.agents/skills/math-modeling-review/

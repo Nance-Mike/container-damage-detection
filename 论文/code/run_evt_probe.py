@@ -11,6 +11,7 @@ WEIGHTS = ROOT / "runs/detect/improved_with_neg/weights/best.pt"
 VAL_DIR = ROOT / "data/processed/images/val"
 NEG_DIR = ROOT / "data/processed/negative_samples/images"
 TRAIN_DIR = ROOT / "data/processed/images/train"
+EVT_RESULTS = ROOT / "results/evt_improved_with_neg/evt_results.json"
 OUT = ROOT / "results/evt_pseudo_neg_results.txt"
 
 
@@ -25,6 +26,13 @@ def max_conf_map(model, image_dir):
             float(boxes.conf.max().cpu()) if (boxes is not None and len(boxes) > 0) else 0.0
         )
     return out
+
+
+def scheme_metrics(scores, y, threshold, rule):
+    pred = (scores >= threshold).astype(int)
+    tpr = float(pred[y == 1].mean())
+    fpr = float(pred[y == 0].mean())
+    return {"rule": rule, "threshold": threshold, "tpr": tpr, "fpr": fpr}
 
 
 def main():
@@ -43,6 +51,25 @@ def main():
     mask = fpr <= 0.05
     i5 = int(np.argmax(tpr[mask])) if mask.any() else None
 
+    evt = json.loads(EVT_RESULTS.read_text(encoding="utf-8"))
+    k = float(evt["weibull_params"]["k"])
+    lam = float(evt["weibull_params"]["lambda"])
+    tau = float(evt["threshold"])
+    equiv_conf = lam * (-np.log(1.0 - tau)) ** (1.0 / k)
+
+    schemes = {
+        "any_box": scheme_metrics(s, y, 0.01, "存在任一检测框（conf>=0.01）即判有缺陷"),
+        "fixed_conf_0.25": scheme_metrics(s, y, 0.25, "最大置信度固定阈值 0.25（提交检测口径）"),
+        "fixed_conf_0.34": scheme_metrics(s, y, 0.34, "最大置信度固定阈值 0.34（与 EVT 阈值等价）"),
+        "evt_tau0.1": {
+            "rule": "EVT 缺陷概率阈值 tau*=0.1（等价置信度 s*~%.3f）" % equiv_conf,
+            "threshold": tau,
+            "equiv_conf": float(equiv_conf),
+            "tpr": float((s >= equiv_conf)[y == 1].mean()),
+            "fpr": float((s >= equiv_conf)[y == 0].mean()),
+        },
+    }
+
     report = {
         "val_images": len(pos),
         "unused_negatives": len(neg),
@@ -57,6 +84,8 @@ def main():
         "neg_over_0.34": int(sum(1 for v in neg.values() if v >= 0.34)),
         "pos_over_0.34": int(sum(1 for v in pos.values() if v >= 0.34)),
         "neg_zero_conf": int(sum(1 for v in neg.values() if v == 0.0)),
+        "evt_equiv_conf": float(equiv_conf),
+        "schemes": schemes,
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))
     OUT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
