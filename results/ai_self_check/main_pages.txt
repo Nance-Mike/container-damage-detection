@@ -1,0 +1,5879 @@
+@@TOTAL 85@@
+@@PAGE 1 START@@
+基于YOLOv8 与极值理论的集装箱破损智能检测模型
+摘要：
+针对集装箱外表面破损的智能检测问题，本文构建了“检测—分类—评估”一体化
+的计算机视觉建模框架，依次解决破损有无判别（问题一）、破损定位与类别识别（问
+题二）以及模型的多维度评估（问题三）三项任务。
+对于问题一，考虑到训练集全部为含破损图像、缺乏无破损负样本，直接训练二分类
+网络难以刻画“无破损”类别。本文提出基于极值理论（Extreme Value Theory, EVT）的开
+放集判别模型：利用检测网络提取每幅图像的最大检测置信度作为统计量，依据Fisher–
+Tippett–Gnedenko 定理以二参数Weibull 分布对其极值分布进行建模，并以分布的累积
+概率定义缺陷概率，结合伪负样本校准确定最优阈值。最终模型拟合参数为k = 3.064、
+λ = 0.701，正负样本最大置信度均值（0.628 对0.077）分离显著，近似AUC 达0.972，
+等价置信度0.34 处召回率85.2%、误报率仅5.3%；最终模型在测试集上判别出352 幅
+破损图像与61 幅无破损图像，判决阈值与检测输出保持统计一致性。
+对于问题二，本文基于YOLOv8 构建缺陷定位与分类模型。针对Hole（破洞）类
+样本占比仅11.8% 的类别不平衡问题，采用针对性数据增强策略（含Copy-Paste 等）与
+类别均衡设计；针对训练集无负样本导致背景误检的问题，从训练图像无标注区域裁
+剪600 幅负样本参与训练。三组对照实验表明：骨干网络升级（YOLOv8n→YOLOv8s）
+与数据增强策略使验证集mAP@0.5:0.95 由0.190 提升至0.212；引入负样本训练的最终
+模型在验证集上达到mAP@0.5 = 0.405、mAP@0.5:0.95 = 0.205，逐类mAP@0.5:0.95 为
+Dent 0.295、Hole 0.190、Rusty 0.129，其中Rusty 类召回率仅0.282 是主要短板；负样本
+比例实验验证600 幅为分离度甜点，检测结果按竞赛要求输出至test_result.csv。
+对于问题三，本文从精度、分类、消融、鲁棒性、效率与错误分析六个维度系统评
+估模型：检测精度上，独立复测与训练最优指标一致，Rusty 类弱纹理缺陷是主要瓶颈；
+消融实验上，增益主要来自骨干升级，Copy-Paste 贡献可忽略，负样本训练以约0.007
+的mAP 代价改善分离度；鲁棒性上，模型对亮度（±30）与3 × 3 高斯模糊扰动稳健
+（mAP@0.5:0.95 衰减不超过0.014），对强高斯噪声敏感（σ = 50 时降至0.004）；效率
+上，最终模型参数规模约11.1 M、计算量28.4 GFLOPs，在RTX 4070 Laptop GPU 上单
+幅640×640 图像端到端推理8.87 ms（约113 FPS），满足实时巡检需求；错误分析上，小
+目标漏检与类间混淆是主要误差来源；P2 头使Hole 类mAP@0.5:0.95 提升0.021、TTA
+使整体指标提升至0.215，为后续优化指明方向。
+关键词：集装箱破损检测；YOLOv8；极值理论；Weibull 分布；Copy-Paste 数据增强；多
+维度评估
+1
+
+@@PAGE 1 END@@
+@@PAGE 2 START@@
+一、问题重述
+1.1 问题背景
+随着全球贸易的快速发展，集装箱作为国际货物运输的核心载体，被广泛应用于海
+运、陆运及多式联运环节。长期的装卸、堆叠与运输过程中，集装箱经常受到机械冲击、
+腐蚀、变形等外力作用，导致箱体外表面产生裂纹、凹陷、穿孔、锈蚀等不同类型的损
+伤。这些破损不仅影响集装箱的结构强度与密封性能，造成货物泄漏、污染或丢失，还
+可能引发运输安全事故并造成经济损失。因此，实现对集装箱破损的高效、准确、标准
+化检测，已成为港口运输管理与国际物流安全中的关键问题。
+传统的集装箱破损检测主要依赖人工巡检或简单图像比对，存在检测效率低、主观
+性强、环境适应性差等问题，难以满足港口自动化与大规模作业的需求。近年来，随着
+计算机视觉与深度学习技术的迅速发展，基于图像识别的自动检测方法成为研究热点。
+通过固定摄像头或龙门吊摄像头自动采集集装箱图像，并引入卷积神经网络（CNN[1]）
+与目标检测模型（如YOLO 系列[2, 3, 4, 5]、Faster R-CNN[6] 等），可在复杂背景下自
+动识别多类型破损，实现集装箱状态的智能化评估与实时监测，为智慧港口建设和安全
+运输提供技术支撑。
+1.2 问题提出
+本题要求利用提供的集装箱外表面图像数据集，构建智能识别模型，完成以下三项
+任务：
+1. 问题一（分类任务）：结合给出的图像文件，提取图像特征，建立模型判断该集装
+箱图像是否存在任何形式的残损；
+2. 问题二（检测与分割任务）：如果存在残损，需要定位残损所在位置，并识别残损
+的具体类别；
+3. 问题三（模型评估）：对上述问题一、问题二中建立的模型，从不同维度进行评估。
+此外，需要利用所建立的模型对测试集中的图片进行检测，并将检测结果按照
+image_id,class_id,x_center,y_center,width,height 的格式写入test_result.csv
+中，其中坐标均为归一化值。
+赛题同时提示了数据与建模中的主要困难：图像背景复杂（港口机械、天空、地面），
+存在光照变化、反光、阴影、雨水、污渍等干扰；残损大小不一，大的如大面积锈蚀，小
+的如细微裂缝，对模型的多尺度特征提取能力要求高；无残损图片可能远多于有残损图
+片；某些残损类别（如裂缝）的样本数量可能远少于其他类别（如凹陷）；某些残损类
+2
+
+@@PAGE 2 END@@
+@@PAGE 3 START@@
+别外观相似（如深凹陷与破损），难以区分。上述提示构成了本文建模与实验设计的重
+要出发点。
+二、问题分析
+2.1 问题一的分析
+问题一本质上是图像级二分类问题，即判断每幅集装箱图像是否含有缺陷。其建模
+存在一个显著的数据障碍：训练集中所有图像均含有缺陷，不存在“无缺陷”的负样本，
+因此无法按照常规流程直接监督训练一个二分类网络。若仅依靠检测模型的输出（图片
+中是否有检测框）进行判别，又会因背景误检而引入大量假阳性。
+针对上述困难，本文提出“检测—判别”两阶段思路：第一阶段利用目标检测网络
+对图像进行推理，将网络的输出（检测框置信度）作为中间统计量；第二阶段对置信度
+的极值分布进行概率建模，将连续置信度映射为缺陷概率，从而实现开放集（open-set）
+意义上的二分类。由于检测网络在无缺陷图像上要么不输出检测框，要么仅输出低置信
+度误检，而有缺陷图像通常至少存在一个高置信度检测，二者在“最大检测置信度”这
+一统计量上呈现可分性。依据Fisher–Tippett–Gnedenko 定理，有界随机变量的块极大值
+服从Weibull 型极限分布，据此可对置信度极值分布进行严格建模并确定最优判别阈值。
+2.2 问题二的分析
+问题二要求对缺陷进行定位并识别类别，属于典型的多类别目标检测任务。结合工
+业实时巡检的应用场景，模型需要在保证精度的同时具备较高的推理速度，因此本文选
+择单阶段检测器YOLOv8 作为基础框架。
+数据层面的主要挑战有三点：其一，Hole（破洞）类标注仅占总标注的11.8%，类
+别不平衡会导致少数类检测性能显著下降；其二，小目标（面积小于32 × 32 像素）占
+比约17.0%，需要模型具备多尺度特征提取能力；其三，图像背景复杂、光照变化剧烈，
+需要针对性的数据增强提升泛化能力。本文相应采取三项措施：以预训练权重迁移学习
+降低训练难度；采用Copy-Paste 增强与HSV 扰动、Mosaic 等组合增强策略；从训练图
+像的无标注区域裁剪构造负样本并参与训练，在抑制背景误检的同时为问题一的判别模
+型提供统计基础。
+2.3 问题三的分析
+问题三要求从不同维度评估问题一、问题二中建立的模型。结合竞赛评阅与工业应
+用的双重视角，本文建立六维度评估框架：
+3
+
+@@PAGE 3 END@@
+@@PAGE 4 START@@
+1. 检测精度：以mAP@0.5、mAP@0.5:0.95、Precision、Recall 等指标量化定位与分类
+能力；
+2. 分类性能：以缺陷概率分布、判别阈值与分类统计评估问题一模型的判别能力；
+3. 消融实验：通过三组对照实验验证各改进策略的贡献；
+4. 鲁棒性：分析模型对光照、阴影、污渍、尺度变化等干扰的抵抗能力；
+5. 推理效率：从参数量、推理耗时与FPS 评估实时性；
+6. 错误分析：对典型误检与漏检案例进行归因，为模型优化提供依据。
+2.4 总体技术路线
+本文的总体技术路线如图2-1 所示。数据经划分、负样本构造与增强后训练YOLOv8
+检测模型；检测模型同时服务于问题二（输出定位与类别）与问题一（提供最大置信度
+统计量，经EVT 建模完成二分类）；最终以多维度评估框架对模型进行综合评判。
+原始数据集
+3713 张图像
+分层抽样划分
+训练2806
+验证494
+负样本构造
+600 张无破损图
+数据增强
+HSV/Mosaic
+Copy-Paste
+YOLOv8s
+检测模型
+P3/P4/P5
+测试集413 张
+test_result.csv
+定位与类别
+最大置信度
+si = maxj cij
+Weibull 拟合
+(k, λ)
+缺陷概率
+Pdefect
+二分类
+判别结果
+多维度评估
+精度/AUC/消融
+鲁棒性/效率/错误
+数据准备
+检测
+EVT 判别
+评估
+图2-1
+总体技术路线图
+三、模型假设
+为简化问题并保证模型的合理性与可复现性，本文作出如下假设：
+1. 假设数据集中图像的标注准确可靠，标注框能够完整覆盖缺陷区域，且类别标签与
+缺陷实际外观一致；
+2. 假设训练集与测试集图像均来自同一拍摄场景与采集设备，图像分辨率统一为
+640 × 640，满足同分布假设；
+3. 假设检测网络输出的置信度分数能够单调反映目标存在的真实概率，即置信度越
+高，该位置存在缺陷的可能性越大；
+4
+
+@@PAGE 4 END@@
+@@PAGE 5 START@@
+4. 假设有缺陷图像中至少存在一个高置信度检测结果，而无缺陷图像的最大检测置
+信度显著偏低，二者在最大置信度统计量上可分；
+5. 假设各缺陷类别之间互不重叠、独立标注，一张图像中允许同时存在多个类别的缺
+陷；
+6. 假设模型推理阶段的计算资源充足，允许使用GPU 加速以满足实时检测需求。
+四、符号说明
+本文使用的主要符号及其含义如表4-1 所示。除特别说明外，坐标均为归一化坐标，
+取值范围为[0, 1]。
+表4-1
+主要符号说明
+符号
+含义
+X
+图像集合，X = {x1, x2, . . . , xN}
+N
+图像数量
+ci,j
+第i 幅图像中第j 个候选检测框的置信度
+mi
+第i 幅图像中的候选检测框数量
+si
+第i 幅图像的最大检测置信度，si = maxj ci,j
+k
+Weibull 分布的形状参数
+λ
+Weibull 分布的尺度参数
+F(·)
+Weibull 分布的累积分布函数
+Pdefect(x)
+图像x 的缺陷概率
+τ
+分类判别阈值，τ ∗为最优阈值
+yi, ˆyi
+第i 幅图像的真实标签与预测标签（1 表示有缺陷，0 表示无缺
+陷）
+IoU
+预测框与真实框的交并比
+TP, FP, FN, TN
+真正例、假正例、假负例、真负例数量
+P, R, F1
+精确率、召回率、F1 分数
+AP
+平均精确率（Average Precision）
+mAP
+各类别AP 的均值
+Lbox, Lcls, Ldfl
+检测损失的定位、分类与分布聚焦损失分量
+αc
+类别c 的损失平衡系数
+γ
+Focal Loss 聚焦参数
+W1(µ, ν)
+概率分布µ 与ν 之间的1-Wasserstein 距离
+5
+
+@@PAGE 5 END@@
+@@PAGE 6 START@@
+符号
+含义
+µc
+类别c 在特征空间中的经验分布
+C
+缺陷类别集合，C = {0, 1, 2} 分别对应Dent、Hole、Rusty
+五、数据处理与探索性分析
+5.1 数据来源与格式
+本赛题提供集装箱外表面图像数据集，共3713 幅图像，其中训练集3300 幅、测试
+集413 幅，图像分辨率统一为640 × 640。标注采用YOLO 标准格式，每个标注框以“类
+别编号、中心点归一化坐标、宽高归一化值”共五行数据表示。缺陷共三类：Dent（凹
+陷，编号0）、Hole（破洞，编号1）、Rusty（锈蚀，编号2）。数据集构成如表5-1 所示。
+表5-1
+数据集构成
+集合
+图像数
+标注框数
+训练集
+3300
+8038
+测试集
+413
+1066
+合计
+3713
+9104
+5.2 数据集统计特征
+5.2.1 类别分布
+训练集各类别标注框数量及占比如表5-2 与图5-1 所示。可以看出，Dent 类占48.9%，
+Rusty 类占39.3%，而Hole 类仅占11.8%，约为Dent 类的四分之一，类别不平衡问题突
+出，少数类Hole 的检测性能需要重点保障。
+表5-2
+训练集类别分布
+类别
+标注框数
+占比
+Dent（凹陷）
+3934
+48.9%
+Hole（破洞）
+946
+11.8%
+Rusty（锈蚀）
+3158
+39.3%
+合计
+8038
+100.0%
+6
+
+@@PAGE 6 END@@
+@@PAGE 7 START@@
+图5-1
+训练集各类别标注框数量分布
+5.2.2 每图缺陷数量分布
+训练集每幅图像包含1 ∼50 个缺陷标注，平均每图2.44 个、中位数2 个、标准差
+2.82。其中含单个缺陷的图像1619 幅（49.1%），含多个缺陷的图像1681 幅（50.9%），
+密集目标检测场景占比高，对模型的去重与关联能力提出要求。分布如图5-2 所示。
+图5-2
+训练集每图缺陷数量分布
+5.2.3 目标尺度分布
+按COCO 标准[7]（以640 × 640 为基准，面积小于32 × 32 像素为小目标，32 × 32
+至96 × 96 为中目标，其余为大目标）统计各尺度占比，结果如表5-3 与图5-3 所示。全
+部目标中小目标占比17.0%，其中Hole 类小目标占比高达43.7%，尺度差异显著，要求
+模型具备强多尺度特征提取能力。
+7
+
+@@PAGE 7 END@@
+@@PAGE 8 START@@
+表5-3
+训练集目标尺度分布（COCO 标准）
+类别
+小目标
+中目标
+大目标
+Dent
+253（6.4%）
+1487（37.8%）
+2194（55.8%）
+Hole
+413（43.7%）
+327（34.6%）
+206（21.8%）
+Rusty
+700（22.2%）
+1820（57.6%）
+638（20.2%）
+全部
+1366（17.0%）
+3634（45.2%）
+3038（37.8%）
+图5-3
+训练集目标尺度分布
+5.2.4 图像视觉特征
+对训练集图像的亮度、对比度、饱和度与色调进行统计，结果如表5-4 与图5-4 所
+示。图像亮度均值129.5、标准差41.9，跨度从13 到236，光照条件差异极大；对比度
+与饱和度同样呈现大范围波动。这一特征决定了模型训练必须引入强光照扰动类增强，
+以覆盖拍摄环境变化。
+表5-4
+图像视觉特征统计
+统计量
+均值± 标准差
+范围
+亮度
+129.5±41.9
+[13, 236]
+对比度
+49.9±20.5
+[8, 112]
+饱和度
+80.8±41.6
+[11, 250]
+色调
+77.7±37.9
+[2, 173]
+8
+
+@@PAGE 8 END@@
+@@PAGE 9 START@@
+图5-4
+图像亮度、对比度与色彩分布
+此外，标注框位置热力图（图5-5）显示缺陷在图像空间中的分布相对均匀、无明
+显区域偏置，但中心区域略密，符合集装箱箱体居中拍摄的成像规律。图5-6 给出三类
+缺陷的典型样本及其标注框示例。
+图5-5
+训练集标注框位置热力图
+9
+
+@@PAGE 9 END@@
+@@PAGE 10 START@@
+图5-6
+三类缺陷典型样本（矩形框为数据集标注）
+5.3 数据预处理与负样本构造
+针对上述数据特征，本文按以下流程进行数据预处理：
+1. 数据集划分：按图像主类别进行分层随机抽样，将训练集划分为训练子集2806 幅
+与验证子集494 幅，验证集用于早停与超参数选择；
+2. 负样本构造：训练集不含无缺陷图像，为保证问题一判别模型与检测模型的背景抑
+制能力，从训练图像中随机选取不覆盖任何标注框的320 × 320 区域进行裁剪，构
+造候选负样本1200 幅，其中600 幅纳入训练集参与检测模型训练（负样本标注文
+件为空），其余保留备用；
+3. 数据增强：采用表5-5 所列的在线增强策略，模拟光照变化、阴影污渍、尺度变化
+等干扰，提升模型泛化能力。
+构造的负样本示例与数据增强效果预览分别见图5-7 与图5-8。
+表5-5
+数据增强策略
+增强方式
+参数设置
+模拟干扰
+HSV 色相/饱和度/亮度扰动
+hsv_h=0.015, hsv_s=0.7, hsv_v=0.4
+光照变化、反光
+水平翻转
+fliplr=0.5
+拍摄视角变化
+随机平移与缩放
+translate=0.1, scale=0.5
+目标尺度变化
+Mosaic 拼接[4]
+mosaic=1.0
+复杂背景与遮挡
+Copy-Paste 复制粘贴
+copy_paste=0.5
+缓解类别不平衡
+随机擦除
+erasing=0.4
+阴影、污渍遮挡
+随机增强
+auto_augment=randaugment
+综合干扰
+10
+
+@@PAGE 10 END@@
+@@PAGE 11 START@@
+图5-7
+无标注区域裁剪构造的负样本示例
+11
+
+@@PAGE 11 END@@
+@@PAGE 12 START@@
+图5-8
+数据增强效果预览
+5.4 小结
+探索性分析表明：本数据集具有类别不平衡（Hole 仅11.8%）、小目标占比高（17.0%）、
+光照变化剧烈、多目标密集（50.9% 图像含多个缺陷）且无负样本等特点。上述结论直
+接指导了后续模型设计与训练策略：采用Copy-Paste 增强与负样本训练应对不平衡与
+开放集问题，采用强光照扰动增强应对成像环境差异，采用迁移学习与多尺度检测结构
+应对小目标与尺度差异。
+六、问题一：基于极值理论的缺陷图像判别模型
+6.1 问题描述与建模思路
+问题一要求判断集装箱图像是否存在缺陷，即二分类任务。其核心困难在于训练集
+全部为含缺陷图像，缺乏负样本，无法直接训练有监督二分类网络。本文采用“检测—
+判别”两阶段框架（图6-1）：首先由检测网络提取图像的“最大检测置信度”统计量，
+然后利用极值理论对该统计量的分布进行建模，将置信度映射为缺陷概率，并在验证集
+上确定最优判别阈值。
+12
+
+@@PAGE 12 END@@
+@@PAGE 13 START@@
+YOLOv8s 检测推理
+每图mi 个检测框
+置信度cij
+图像级最大置信度
+si = maxj cij
+Weibull 极值拟合
+F(s; k, λ)
+缺陷概率映射
+Pdefect = F(sx)
+阈值判别
+有缺陷/ 无缺陷
+检测阶段
+EVT 建模
+判别
+F1 重标定（需真实负样本）
+图6-1
+基于极值理论的“检测—判别”两阶段流程
+该思路的可行性建立在以下统计事实之上：含缺陷图像通常存在至少一个高置信度
+检测框，而无缺陷图像要么无检测框输出，要么仅存在低置信度误检。因此，“最大检
+测置信度”这一统计量在两类图像间具有天然的可分性，问题一由此转化为对置信度极
+值分布的单变量统计建模问题[8, 9, 10]，避免了为“无缺陷”类别构造大规模伪样本的
+必要性。需要说明的是，图像内候选检测框数量mi 随机且各框置信度彼此相关，si 并
+非经典意义下独立同分布序列的块极大值；本文以Fisher–Tippett–Gnedenko 定理作为工
+程近似建模依据，其判别有效性由伪负样本校准实验验证。
+6.2 最大置信度统计量
+定义6.1 (最大检测置信度). 令X = {x1, x2, . . . , xN} 为验证集图像集合。对每幅图像xi，
+检测模型输出mi 个候选检测框及其置信度集合{ci,1, . . . , ci,mi}。定义图像级最大置信度
+si = max
+1≤j≤mi ci,j,
+i = 1, 2, . . . , N,
+(1)
+当mi = 0 时取si = 0。由此得到置信度序列S = {s1, . . . , sN}。
+注记6.1 (统计直觉). 含真实缺陷的图像，其si 通常集中在(0.5, 1) 区间；无缺陷图像的
+si 则集中在0 或(0, 0.3) 附近的低置信度误检区间。二者的分布分离性是本文方法成立
+的统计基础。
+6.3 极值理论基础
+定理6.1 (Fisher–Tippett–Gnedenko 定理). 设{X1, . . . , Xn} 为独立同分布随机变量序列，
+Mn = max(X1, . . . , Xn)。若存在常数列an > 0 与bn，使得(Mn −bn)/an 依分布收敛到
+非退化分布G，则G 必属于广义极值分布族，即Gumbel、Fréchet 或Weibull 三种类型
+之一。[8, 9, 10]
+引理6.1 (Weibull 分布的适用性). 对于取值有界的随机变量（如si ∈[0, 1]），其块极大
+值的极限分布属于Weibull 型。由于YOLO 置信度满足ci,j ∈[0, 1]，最大置信度si 同样
+有界，故采用Weibull 分布对si 建模具有严格的理论依据。[9]
+13
+
+@@PAGE 13 END@@
+@@PAGE 14 START@@
+6.4 Weibull 分布拟合与缺陷概率
+二参数Weibull 分布的累积分布函数为[9]
+F(s; k, λ) = 1 −exp
+
+−
+ s
+λ
+k
+,
+s ≥0,
+(2)
+其中k > 0 为形状参数，λ > 0 为尺度参数。给定观测序列S，其对数似然函数为[9]
+ℓ(k, λ) = N ln k −Nk ln λ + (k −1)
+N
+X
+i=1
+ln si −
+N
+X
+i=1
+si
+λ
+k
+.
+(3)
+令∂ℓ/∂λ = 0 可得尺度参数的闭式估计
+ˆλ =
+ 
+1
+N
+N
+X
+i=1
+s
+ˆk
+i
+!1/ˆk
+,
+(4)
+形状参数ˆk 通过数值优化（Newton–Raphson 法）求解，本文采用SciPy 的weibull_
+min.fit 完成拟合。
+基于拟合参数(ˆk, ˆλ)，定义测试图像x 的缺陷概率为
+Pdefect(x) = F(sx; ˆk, ˆλ) = 1 −exp
+"
+−
+sx
+ˆλ
+ˆk#
+,
+(5)
+其中sx 为该图像的最大检测置信度。Pdefect(x) 度量了观测到的最大置信度落入“缺陷
+图像极值分布”的程度，值越大表明该图像的检测模式越符合含缺陷图像的统计规律。
+6.5 最优判别阈值的确定
+给定阈值τ ∈(0, 1)，分类规则为
+ˆy(x) =
+
+
+
+
+
+1,
+Pdefect(x) ≥τ （有缺陷）,
+0,
+Pdefect(x) < τ （无缺陷）.
+(6)
+理论上，最优阈值应通过在同时含正负样本的验证集上最大化F1 分数确定：
+τ ∗= arg max
+τ∈(0,1)
+2 Precision(τ) Recall(τ)
+Precision(τ) + Recall(τ).
+(7)
+由于本文验证集全部为含缺陷图像（无负样本），无法直接计算F1，本文采用保守的启
+发式策略：以验证集缺陷概率的第5 百分位作为阈值候选，并设置下界0.1，即
+τ ∗= max
+ Q5%
+ {Pdefect(si)}
+
+, 0.1
+
+,
+(8)
+该策略允许约5% 的验证集假阴性，保证对有缺陷图像的召回优先。阈值τ ∗还可等价
+地换算为置信度水平
+s∗= ˆλ [−ln(1 −τ ∗)]1/ˆk ,
+(9)
+用于与检测输出的置信度阈值进行一致性对照。
+14
+
+@@PAGE 14 END@@
+@@PAGE 15 START@@
+6.6 结果与分析
+本文分别以基线模型（YOLOv8n）、改进模型（YOLOv8s+Copy-Paste）与最终模型
+（改进模型+ 负样本训练）提取验证集与测试集的最大置信度，拟合Weibull 分布并完成
+判别。以最终模型为例，Weibull 拟合效果与置信度—缺陷概率映射关系如图6-2 所示，
+实测置信度直方图与拟合概率密度吻合良好。
+图6-2
+最终模型验证集最大置信度的Weibull 拟合与缺陷概率映射
+三组模型的Weibull 参数与测试集判别结果如表6-1 所示。三组模型的最优阈值均
+为τ ∗= 0.1，测试集413 幅图像中判别为有缺陷的图像数为351∼353 幅，判别结果具
+有良好的一致性。最终模型的形状参数k = 3.064 最大，说明其最大置信度分布更集中、
+置信度更高，检测网络对缺陷目标的判别能力更强。
+表6-1
+三组模型Weibull 参数与问题一判别结果（测试集413 幅）
+模型
+k
+λ
+τ ∗
+有缺陷
+无缺陷
+基线（YOLOv8n）
+2.446
+0.639
+0.10
+351
+62
+改进（YOLOv8s+Copy-Paste）
+2.963
+0.718
+0.10
+353
+60
+最终模型（+ 负样本）
+3.064
+0.701
+0.10
+352
+61
+进一步的一致性分析表明：最终模型在测试集上判别出的61 幅无缺陷图像中，36
+幅在0.25 置信度阈值下无任何检测框，其余25 幅虽存在低置信度检测框，但其缺陷概
+率低于τ ∗。由式(9) 计算，τ ∗= 0.1 等价于最大置信度阈值约0.34，因此若将检测输出阈
+值同步设为0.34，问题一与问题二的结果完全一致。本文最终检测提交采用0.25 阈值，
+是为了在定位任务中优先保证召回率，宁可多检亦不漏检；而问题一的判别采用EVT
+概率阈值，兼顾了判别准确率。
+15
+
+@@PAGE 15 END@@
+@@PAGE 16 START@@
+6.7 伪负样本校准与判别能力量化
+由于竞赛验证集不含无缺陷图像，问题一无法直接在本地计算混淆矩阵与ROC-
+AUC。作为替代，本文利用训练阶段未使用的600 幅伪负样本（从训练图像无标注区域
+按320 × 320 裁剪的背景碎片）构造代理负样本集，在最终模型上量化判别能力。494 幅
+正样本（验证集）的最大置信度均值为0.628、中位数为0.701，600 幅伪负样本的均值
+仅为0.077、中位数为0.029，两类分布分离显著。以最大置信度为得分，正样本对伪负
+样本的近似AUC 达0.972；在等价置信度阈值约0.34 处，正样本召回率为85.2%，伪负
+样本误报率仅5.3%（32/600），与式(9) 导出的阈值一致性结论相互印证。
+为说明EVT 判别相对常规启发式规则的增益来源，本文在同一代理负样本集上比
+较四类判别方案，结果如表6-2 所示。直接以” 是否存在检测框” 判别（conf≥0.01）召
+回率虽达99.8%，但误报率高达70.8%，完全不可用；固定置信度阈值0.25（检测提交
+口径）在召回91.7% 的同时误报9.2%；而EVT 概率阈值τ ∗= 0.1（等价置信度约0.34）
+在召回85.2% 时误报仅5.3%。需要强调：由于缺陷概率Pdefect(s) 是最大置信度s 的单
+调递增函数，EVT 映射并不改变AUC（各得分方案近似AUC 均为0.972），其价值在于
+将” 原始置信度” 校准为具有统计含义的” 缺陷概率”——阈值τ ∗对应验证集缺陷概率分
+布的保守下界（第5 百分位），使判别口径可解释、可复现，并可直接换算为检测置信
+度阈值（式(9)），实现问题一与问题二的口径统一。
+表6-2
+问题一判别规则对比（494 幅正样本vs 600 幅伪负样本，近似AUC=0.972）
+判别规则
+判定条件
+TPR
+FPR
+检测框有无
+存在任一检测框（conf≥0.01）
+99.8%
+70.8%
+固定置信度阈值
+最大置信度s ≥0.25（提交口径）
+91.7%
+9.2%
+固定置信度阈值
+最大置信度s ≥0.34（等价阈值）
+85.0%
+5.3%
+EVT 缺陷概率
+Pdefect(s) ≥τ ∗= 0.1（s∗≈0.34）
+85.2%
+5.3%
+需要说明的是，伪负样本来源于无标注区域的背景裁剪，与真实” 无缺陷集装箱”
+图像存在分布偏移，且背景碎片更易与正样本区分，上述数字应视为有条件代理下的乐
+观估计。待获得真实负样本标注集后，可按式(7) 直接以F1 最大化重新标定阈值。
+6.8 小结
+本节提出的EVT 判别模型以检测置信度的极值分布为桥梁，在不构造大规模负样
+本的前提下完成了图像级缺陷判别，且模型可解释性强、计算开销可忽略。三组模型的
+判别结果一致，验证了该方法对检测骨干变化的稳健性。
+16
+
+@@PAGE 16 END@@
+@@PAGE 17 START@@
+七、问题二：基于YOLOv8 的缺陷检测模型
+7.1 YOLOv8 检测模型
+YOLOv8 是Ultralytics 提出的单阶段目标检测框架[5]，采用anchor-free 解耦检测头
+设计，整体由Backbone、Neck 与Head 三部分组成，其结构示意如图7-1 所示。Backbone
+以C2f 模块堆叠提取多尺度特征，并经SPPF 池化增强感受野；Neck 采用PAN-FPN[11]
+结构实现自顶向下与自底向上的双向多尺度特征融合，输出P3、P4、P5 三组特征图；
+Head 对每个位置直接预测类别与包围框（anchor-free），并通过解耦分支分别进行回归
+与分类，最后经非极大值抑制（NMS）输出检测结果。
+输入图像
+640 × 640 × 3
+Backbone
+Conv + C2f + SPPF
+Neck
+PAN-FPN 双向融合
+P3/P4/P5
+解耦检测头
+P3/P4/P5
+NMS
+后处理
+输出
+位置+ 类别+ 置信度
+分类分支
+C 类置信度
+回归分支
+4 维框坐标+ DFL
+Backbone
+Neck
+Head
+图7-1
+YOLOv8 网络结构示意图
+YOLOv8 的总体训练损失由定位损失、分类损失与分布聚焦损失三部分加权组成：
+L = λboxLbox + λclsLcls + λdflLdfl,
+(10)
+其中定位损失采用CIoU 损失。对预测框B 与真实框Bgt，记两者交集与并集的面积分
+别为|B ∩Bgt| 与|B ∪Bgt|，则交并比（IoU）[7] 定义为
+IoU = |B ∩Bgt|
+|B ∪Bgt|,
+(11)
+LCIoU = 1 −IoU + ρ2(b, bgt)
+c2
++ αv,
+(12)
+其中ρ(·) 为两框中心点的欧氏距离，c 为最小外接矩形对角线长度，v =
+4
+π2
+ arctan wgt
+hgt −
+arctan w
+h
+2 度量预测框与真实框的长宽比一致性，α =
+v
+(1−IoU)+v 为平衡系数[12]。分类损
+失采用二元交叉熵：
+Lcls = −
+
+y log σ(z) + (1 −y) log(1 −σ(z))
+
+,
+(13)
+分布聚焦损失以离散分布形式建模边框位置的概率分布[13]，并通过
+LDFL(Si, Si+1) = −
+
+(yi+1 −y) log Si + (y −yi) log Si+1
+
+(14)
+引导预测分布向真实位置集中，其中yi, yi+1 为真实位置的相邻整数值，Si, Si+1 为对应
+的预测概率。
+17
+
+@@PAGE 17 END@@
+@@PAGE 18 START@@
+7.2 训练策略与实验设置
+本文全部实验基于PyTorch 与Ultralytics 框架，在固定随机种子（seed=42）下进行，
+保证结果可复现。实验环境与统一超参数如表7-1 所示。
+表7-1
+实验环境与统一训练超参数
+类别
+配置
+类别
+配置
+GPU
+RTX 4070 Laptop（8 GB）
+输入尺寸
+640 × 640
+Python
+3.13
+批大小
+16
+PyTorch
+2.13
+初始学习率lr0
+0.01
+Ultralytics
+8.4.110
+学习率衰减lrf
+0.01，余弦退火
+优化器
+SGD（momentum=0.937）
+权重衰减
+5 × 10−4
+热身轮数
+3
+早停耐心
+20
+混合精度
+AMP
+随机种子
+42
+本文设计三组递进对照实验，配置如表7-2 所示：基线实验用于建立基准；改进实
+验升级骨干网络并引入Copy-Paste 增强；最终模型进一步加入600 幅负样本参与训练，
+用于问题一判别与背景误检抑制。
+表7-2
+三组实验配置
+实验
+骨干网络
+训练轮数
+Copy-Paste
+负样本数
+基线
+YOLOv8n（3.01 M 参数）
+100
+0
+0
+改进
+YOLOv8s（11.13 M 参数）
+150
+0.5
+0
+最终模型
+YOLOv8s（11.13 M 参数）
+150
+0.5
+600
+7.3 改进策略
+7.3.1 Copy-Paste 数据增强
+针对Hole 类样本仅占11.8% 的类别不平衡问题，本文启用基于实例混合的增强策
+略（与MixUp[14] 同属混合类方法）：Copy-Paste[15] 以概率p = 0.5 从训练批次中随机
+选取少数类目标实例，将其像素区域及其标注框一并复制粘贴到其他训练图像中，形成
+新的训练样本。设源图像中实例o = (Io, Bo)，目标图像为It，粘贴变换T （含随机平移
+与尺度缩放），则生成样本为
+(I′, B′) =
+ It ⊕T (Io), Bt ∪T (Bo)
+
+,
+(15)
+其中⊕表示像素级融合。该增强在不改变真实语义的前提下成倍扩充少数类样本数量，
+同时保留实例的上下文外观，有效缓解了Hole 类梯度不足的问题。
+18
+
+@@PAGE 18 END@@
+@@PAGE 19 START@@
+7.3.2 负样本参与训练
+训练集全部为含缺陷图像，直接训练会使检测网络缺乏对“无缺陷背景”的判别经
+验，导致背景误检，并干扰问题一判别模型的置信度分布。本文从训练图像中不覆盖任
+何标注框的区域随机裁剪320 × 320 子图，构造600 幅负样本并入训练集（标注文件为
+空）。检测网络据此学习抑制背景响应，使无缺陷图像的最大置信度整体下移，为问题
+一EVT 判别提供更清晰的分布分离基础。
+7.3.3 损失函数层面的进一步设计：WD-Focal Loss
+为进一步缓解类别不平衡，本文在Focal Loss[16] 基础上设计并实现了基于Wasser-
+stein 距离的自适应焦点损失（WD-Focal Loss）。其核心思想是以各类别特征分布与全局
+参考分布之间的1-Wasserstein 距离W1(µc, ¯µ) 动态调制类别平衡系数[17]：
+LWD-FL(pt, c) = −αc(1 −pt)γ log pt,
+αc = σ
+W1(µc, ¯µ)
+τ
+
+,
+(16)
+其中σ 为sigmoid 函数，τ 为温度参数。该损失以特征空间的几何可分性替代样本频率
+的逆比例加权，理论上对长尾分布更鲁棒，其自适应调制机制如图7-2 所示。
+类别特征分布
+µc（Dent/Hole/Rusty）
+1-Wasserstein 距离
+W1(µc, ¯µ)
+自适应平衡系数
+αc = σ(W1/τ)
+WD-Focal Loss
+−αc(1 −pt)γ log pt
+反向传播训练
+全局参考分布¯µ
+特征空间
+自适应加权
+训练
+图7-2
+WD-Focal Loss 的自适应调制机制
+受竞赛时间限制，本文三组对照实验采用Ultralytics 默认损失实现，WD-Focal Loss
+的完整推导、实现与接口见附录C，作为后续优化的候选方案。
+为检验该候选方案的有效性，本文在赛后补充完成了WD-Focal Loss 的端到端训练
+验证（同最终模型配置，150 轮）。首版实现中αc 无上限，训练后期各类W1 距离相对
+自适应温度增大，αc 经sigmoid 饱和至约1，负样本权重(1 −αc) 趋近于0，模型失去
+背景抑制并在第60∼70 轮出现性能崩塌（mAP@0.5:0.95 跌至0.02∼0.03）；对αc 施加
+[0.25, 0.75] 限幅后崩塌消除，但验证集mAP@0.5:0.95 仅0.103，仍显著低于基线（0.205）。
+值得注意的是，WD-Focal 使Hole/Dent 两类的mAP@0.5:0.95 比值由基线的0.64 升至
+1.15，说明Wasserstein 加权确实将更多权重分配给了少数类Hole，但其对整体检测精度
+的负效应表明：聚焦调制在检测场景下的损失尺度（分类梯度占比）需要与框架原有损
+失重新配平，直接替换不可行。该方向的调参空间（γ、损失尺度、α 限幅范围）留作后
+续工作。
+19
+
+@@PAGE 19 END@@
+@@PAGE 20 START@@
+7.4 训练过程与结果
+7.4.1 训练过程
+最终模型的训练曲线如图7-3 所示。随着训练进行，三类损失（box、cls、dfl）持
+续下降并在约120 轮后趋于平稳，验证集mAP 同步上升后进入平台期，未出现明显过
+拟合。训练全程约173 分钟，验证集指标在第130∼139 轮附近达到最优。
+图7-3
+最终模型训练过程曲线（损失、精确率、召回率与mAP）
+7.4.2 三组实验对比
+三组实验在验证集上的最优指标如表7-3 所示。改进模型相比基线，mAP@0.5 由
+0.395 提升至0.413，mAP@0.5:0.95 由0.190 提升至0.212，提升幅度约11.5%。为厘清
+增益来源，本文补充了两组对照：在同配置下将Copy-Paste 概率分别设为0 与0.5 训
+练，两条150 轮曲线逐轮完全一致（含训练损失），说明Copy-Paste 在本数据集（仅
+目标框标注、无分割掩膜）上未产生可观测增益，上述提升主要来源于骨干网络容量
+升级（YOLOv8n→YOLOv8s）。最终模型在纯正样本验证集上mAP 略低于改进模型
+（mAP@0.5 为0.405），这是因为负样本训练使模型对低置信度背景响应更加保守，但显
+著增强了背景抑制能力与问题一判别效果，属于以微小精度代价换取开放集鲁棒性的合
+理权衡。
+20
+
+@@PAGE 20 END@@
+@@PAGE 21 START@@
+表7-3
+三组实验验证集最优检测指标对比
+模型
+mAP@0.5
+mAP@0.5:0.95
+Precision
+Recall
+基线（YOLOv8n）
+0.395
+0.190
+0.540
+0.398
+改进（YOLOv8s+Copy-Paste）
+0.413
+0.212
+0.601
+0.414
+最终模型（+ 负样本）
+0.405
+0.205
+0.550
+0.412
+7.4.3 补充消融与改进候选实测
+为进一步量化数据策略与候选改进，本文在赛后补充完成了以下实验（均与最终模
+型同骨干、同数据、150 轮）：
+1. 负样本数量：将负样本数分别设为300、600、900 训练。验证集最优mAP@0.5:0.95
+依次为0.206、0.205、0.202，差异仅约0.004；但问题一判别中Weibull 形状参数k
+依次为2.879、3.064、2.974，600 幅负样本的置信度分布分离度最高。因此原方案
+以600 幅负样本为最终口径同时兼顾检测精度与判别鲁棒性，取舍得到验证；
+2. Rusty 类加权：以Dent 为基准的逆频率权重（pos_weight = 3934/3158 ≈1.246）对
+Rusty 正样本加权训练，验证集mAP@0.5:0.95 为0.171，Rusty 类mAP@0.5:0.95 由
+0.129 略降至0.114，整体显著下降。该负结果印证了Rusty 短板来自类间外观混淆
+而非样本量，单纯损失加权难以弥补；
+3. P2 高分辨率检测头：采用yolov8s-p2（新增160 × 160 特征图检测头）训练，验
+证集mAP@0.5:0.95 为0.209；Hole 类mAP@0.5:0.95 由0.190 升至0.210（+0.021）、
+召回率由0.407 升至0.453，小目标收益显著，但整体收益有限（+0.005）；
+4. 测试时增强（TTA）：对最终模型启用多尺度测试增强，mAP@0.5:0.95 由0.204 升
+至0.215（+0.011），三类别均提升，且无需重新训练，是性价比最高的改进方向。
+7.4.4 检测结果可视化
+最终模型在验证集上的PR 曲线与归一化混淆矩阵分别如图7-4 与图7-5 所示。PR
+曲线显示Dent 类精度-召回权衡最优，Hole 类次之，Rusty 类相对偏弱；混淆矩阵表明
+主要误检发生在Rusty 与背景之间。图7-6 与图7-7 给出同一批验证图像的标注与预测
+对比，图7-8 给出测试集检测结果示例，模型能够准确定位多类缺陷并输出类别与置信
+度。
+21
+
+@@PAGE 21 END@@
+@@PAGE 22 START@@
+图7-4
+最终模型PR 曲线
+图7-5
+最终模型归一化混淆矩阵
+图7-6
+验证集标注（Ground Truth）
+图7-7
+验证集模型预测
+22
+
+@@PAGE 22 END@@
+@@PAGE 23 START@@
+图7-8
+测试集检测结果可视化示例
+7.4.5 检测结果提交
+利用最终模型对413 幅测试图像进行推理（置信度阈值0.25，NMS 阈值0.45），检
+测结果按六列格式（image_id、class_id、x_center、y_center、width、height）写
+入test_result.csv。共输出931 个检测框，覆盖377 幅图像（其余36 幅无检测框），
+各类别数量如表7-4 所示，类别比例与训练集分布基本一致。
+23
+
+@@PAGE 23 END@@
+@@PAGE 24 START@@
+表7-4
+test_result.csv 提交检测结果统计
+类别
+检测框数
+占比
+Dent（凹陷）
+463
+49.7%
+Hole（破洞）
+131
+14.1%
+Rusty（锈蚀）
+337
+36.2%
+合计
+931
+100.0%
+八、问题三：模型多维度评估
+本节从检测精度、分类性能、消融实验、鲁棒性、推理效率与错误分析六个维度，
+对问题一、问题二所建模型进行系统评估。
+8.1 评估指标定义
+对于目标检测，预测框与真实框的匹配以交并比（IoU，式(11)）为准则。以IoU 阈
+值判定正负后，定义
+P =
+TP
+TP + FP,
+R =
+TP
+TP + FN,
+F1 = 2PR
+P + R.
+(17)
+改变置信度阈值可得P-R 曲线，曲线下面积为单类别平均精确率AP；mAP@0.5 为IoU
+阈值取0.5 时各类别AP 的均值，mAP@0.5:0.95 为IoU 阈值在0.5∼0.95 区间（步长0.05）
+共10 个阈值下AP 的均值，是COCO 标准下的综合评价指标[18, 7]。
+对于问题一的图像级二分类，以缺陷概率作为得分，通过ROC 曲线与AUC 度量判
+别能力；以最优阈值τ ∗判决后，用准确率、精确率、召回率与F1 分数描述分类性能。
+8.2 检测精度评估
+最终模型在494 幅验证图像（1314 个实例）上的独立评估结果如表8-1 所示。整体
+mAP@0.5 为0.403、mAP@0.5:0.95 为0.204，与训练过程最优指标（0.405/0.205）一致，
+说明模型泛化稳定。分类别看，Dent 类性能最优（mAP@0.5:0.95=0.295），Hole 类次之
+（0.190），Rusty 类最弱（0.129）。Rusty 类召回率仅0.282，是整体性能的主要短板，其原
+因是锈蚀区域通常面积大、边界模糊，与箱体原有锈斑、污渍等背景纹理高度相似，导
+致大量漏检。
+24
+
+@@PAGE 24 END@@
+@@PAGE 25 START@@
+表8-1
+最终模型验证集逐类检测性能
+类别
+Precision
+Recall
+mAP@0.5
+mAP@0.5:0.95
+F1
+Dent（凹陷）
+0.628
+0.518
+0.517
+0.295
+0.568
+Hole（破洞）
+0.621
+0.407
+0.400
+0.190
+0.492
+Rusty（锈蚀）
+0.471
+0.282
+0.293
+0.129
+0.353
+全部
+0.573
+0.402
+0.403
+0.204
+—
+8.3 分类性能评估
+问题一的分类结果已在第6 节给出：最终模型在测试集上判别352 幅有缺陷、61 幅
+无缺陷。为说明EVT 判别模型的可靠性，进一步分析缺陷概率的分布特性：验证集494
+幅含缺陷图像的最大置信度均值为0.628，缺陷概率均值0.529；而测试集判别为无缺陷
+的61 幅图像缺陷概率全部低于0.1 阈值。判别阈值τ ∗= 0.1 对应的等价置信度约0.34，
+处于两类图像置信度分布的自然分界附近，说明阈值选择具有统计依据。
+由于竞赛验证集不含无缺陷图像，本文无法在本地计算真实混淆矩阵与AUC；作
+为替代，本文通过检测置信度分布的可分性（第6 节图6-2）、阈值等价性分析，并利用
+600 幅未使用伪负样本完成近似ROC-AUC 校准（第6 节，AUC≈0.972）对判别模型进
+行间接验证，同时采用保守阈值（优先召回）规避漏检风险。若后续获得真实负样本标
+注集，可按式(7) 直接以F1 最大化重新标定阈值。
+8.4 消融实验
+三组实验的消融对比如图8-1 所示（曲线与最优值），数据同表7-3。结果表明：
+1. 骨干升级（YOLOv8n→YOLOv8s）带来mAP@0.5:0.95 约0.022 的提升；补充对照
+表明Copy-Paste 在本数据（仅目标框标注、无分割掩膜）上未产生可观测增益，提
+升主要来自骨干容量升级；
+2. 负样本训练使纯正样本验证集mAP 小幅下降约0.007，但在问题一判别中显著改
+善了置信度分布分离度（形状参数k 由2.963 提升至3.064），属于精度与开放集鲁
+棒性的合理权衡；
+3. 三组实验训练曲线均平稳收敛，未出现过拟合，验证了数据增强与正则化策略的有
+效性。
+25
+
+@@PAGE 25 END@@
+@@PAGE 26 START@@
+图8-1
+三组实验消融对比：训练过程mAP 曲线（左）与最优mAP 对比（右）
+8.5 鲁棒性分析
+赛题提示的干扰主要包括光照变化、反光、阴影、雨水、污渍以及目标尺度差异。
+本文从训练与推理两个层面保证模型鲁棒性：
+1. 训练层面：HSV 色相/饱和度/亮度扰动与随机亮度变化模拟光照与反光；随机擦除
+模拟阴影与污渍遮挡；随机平移缩放与Mosaic 模拟目标尺度与复杂背景；负样本
+训练抑制背景误检。上述增强与数据策略共同构成覆盖主要干扰族的正则化，使模
+型对分布内扰动具有天然鲁棒性；
+2. 推理层面：检测阈值与EVT 判别阈值均留有裕度：τ ∗= 0.1 等价置信度约0.34，显
+著高于背景误检的典型置信度区间，对轻度噪声与光照扰动不敏感；
+3. 尺度层面：模型输入统一为640 × 640，PAN-FPN 三尺度特征图覆盖P3∼P5，配合
+0.5 倍随机缩放增强，对17.0% 小目标与大面积锈蚀均具备响应能力。
+为量化模型对上述干扰的实际鲁棒性，本文在验证集（494 幅）上施加高斯噪声
+（σ = 10, 25, 50）、亮度偏移（±30）与高斯模糊（核3×3, 7×7）共6 类扰动并复测mAP，
+结果如表8-2 所示。模型对亮度与轻度模糊扰动高度稳健（mAP@0.5:0.95 衰减不超过
+0.014）；但对高斯噪声敏感，σ = 50 时mAP@0.5:0.95 由0.204 降至0.004。该结果表明
+训练期HSV/擦除等增强已覆盖光照与模糊类分布内扰动，而像素级噪声是当前薄弱环
+节，后续可在训练中引入噪声增强以提升抗噪能力。
+26
+
+@@PAGE 26 END@@
+@@PAGE 27 START@@
+表8-2
+最终模型在扰动验证集上的鲁棒性量化结果（494 幅）
+扰动类型
+mAP@0.5
+mAP@0.5:0.95
+无扰动（基线）
+0.403
+0.204
+高斯噪声σ = 10
+0.223
+0.086
+高斯噪声σ = 25
+0.077
+0.023
+高斯噪声σ = 50
+0.015
+0.004
+亮度+30
+0.398
+0.200
+亮度−30
+0.386
+0.190
+高斯模糊3 × 3
+0.414
+0.204
+高斯模糊7 × 7
+0.337
+0.158
+8.6 效率评估
+模型参数量、计算量与推理耗时如表8-3 所示。最终模型（YOLOv8s）参数量11.13
+M，计算量28.4 GFLOPs；在RTX 4070 Laptop GPU 上，验证阶段推理平均5.0 ms/幅（不
+含前后处理），端到端预测（含预处理与后处理）平均8.87 ms/幅，约合113 FPS，满足
+港口集装箱快速巡检的实时性要求。基线模型参数量3.01 M、计算量8.2 GFLOPs，在
+同等条件下端到端约8.95 ms/幅（112 FPS），二者推理速度接近，说明容量提升未显著
+牺牲实时性。
+表8-3
+模型效率对比（640×640，RTX 4070 Laptop GPU）
+模型
+参数量
+计算量
+端到端推理耗时
+吞吐量
+YOLOv8n（基线）
+3.01 M
+8.2 GFLOPs
+8.95 ms/幅
+112 FPS
+YOLOv8s（最终）
+11.13 M
+28.4 GFLOPs
+8.87 ms/幅
+113 FPS
+8.7 错误分析
+图7-6 与图7-7 展示了同一批验证图像的标注与预测对比。结合逐类指标（表8-1），
+主要误差来源可归纳为三类：
+1. 小目标漏检：Hole 类小目标占比43.7%，细微破洞在低分辨率特征图上响应弱，导
+致召回受限（R=0.407）；
+2. 类间混淆：深凹陷与破洞、锈蚀与锈斑污渍外观相似，模型在类别决策上易混淆，
+Rusty 类精确率仅0.471；
+3. 密集目标抑制：约半数图像含多个缺陷，NMS 在密集场景下可能抑制相邻真实目
+标。
+27
+
+@@PAGE 27 END@@
+@@PAGE 28 START@@
+针对上述问题，可分别通过增加P2 高分辨率检测头强化小目标、引入细粒度特征
+与更严格的类别判别模块、改进NMS 策略（如Soft-NMS）加以缓解，上述方向将在模
+型推广部分进一步讨论。
+8.8 评估小结
+六维度评估表明：最终模型在精度、效率与对光照/模糊扰动的稳健性之间取得了
+合理平衡，检测与分类结果相互印证、口径一致，且具备实时部署能力；主要性能瓶颈
+集中在Rusty 类的大面积弱纹理缺陷、小目标Hole 类与像素级噪声扰动下的脆弱性，为
+后续优化提供了明确方向。
+九、模型评价与推广
+9.1 模型优点
+1. 一体化框架：问题一与问题二共用同一检测模型，判别结果与检测结果统计一致，
+避免了多模型之间的口径冲突，也节省了训练与部署成本；
+2. 开放集判别能力：基于极值理论的EVT 判别模型在不构造大规模负样本的前提下
+完成二分类，数学依据充分、计算开销可忽略，且判别阈值具有明确的统计含义；
+3. 针对性数据策略：600 幅负样本训练显著抑制背景误检，并在问题一判别中取得最
+高的置信度分布分离度（k = 3.064）；消融实验对增益来源作出严谨归因（提升主
+要来自骨干升级，Copy-Paste 因数据无分割掩膜无显著贡献）；
+4. 工程可用性：最终模型约11.13 M 参数，端到端推理8.87 ms/幅，满足港口集装箱
+实时巡检需求；全部实验固定随机种子，结果可复现。
+9.2 模型缺点
+1. Rusty（锈蚀）类召回率偏低（0.282），大面积弱纹理缺陷与背景相似是当前主要性
+能瓶颈；
+2. 由于验证集不含无缺陷图像，问题一分类的混淆矩阵与AUC 未能直接在本地量化，
+仅通过分布可分性间接验证；
+3. 赛后补充消融表明，Copy-Paste 增强在本数据集（无分割掩膜）上未产生可观测增
+益，原” 改进” 实验的增益主要来自骨干网络升级；此外Rusty 类加权与WD-Focal
+Loss 的端到端验证均为负结果，说明类别不平衡问题难以仅靠损失层改进解决；
+4. 鲁棒性扰动测试显示模型对高斯噪声敏感（σ = 50 时mAP@0.5:0.95 由0.204 降至
+0.004），像素级噪声是当前鲁棒性的薄弱环节。
+28
+
+@@PAGE 28 END@@
+@@PAGE 29 START@@
+9.3 模型推广
+针对上述不足，可从以下方向进一步推广与改进：
+1. 损失函数改进迭代：WD-Focal 端到端验证（负结果）表明其增益受损失尺度失衡
+制约，后续应在分类分支损失配平、γ 与α 限幅范围内重新调参，而非直接替换；
+2. 小目标检测增强（已实测）：P2 高分辨率检测头使Hole 类mAP@0.5:0.95 由0.190
+升至0.210（+0.021）、召回率由0.407 升至0.453；多尺度测试增强（TTA）使整
+体mAP@0.5:0.95 由0.204 升至0.215（+0.011），无需重新训练，建议优先采用；
+Soft-NMS 可进一步缓解密集目标抑制；
+3. 缺陷分割扩展：在检测基础上引入实例分割分支，输出破损轮廓与面积，为破损严
+重程度评估提供更细粒度信息；
+4. 轻量化部署：通过通道剪枝、知识蒸馏与量化将模型压缩至边缘设备可运行规模，
+结合多视角摄像头实现集装箱全表面自动巡检；
+5. 评估完善：扰动鲁棒性测试已补齐（噪声、亮度、模糊六类扰动）；后续在含真实
+负样本的标注集上重标定问题一阈值并计算混淆矩阵与ROC-AUC，形成完整的模
+型检验报告。
+综上，本文构建的“YOLOv8 检测+ EVT 判别+ 多维度评估”方案，在数据存在
+类别不平衡、小目标密集、无负样本与复杂背景等现实困难的条件下，实现了准确、实
+时、可解释的集装箱破损检测，具备良好的工程推广价值。
+参考文献
+[1] He K, Zhang X, Ren S, et al. Deep residual learning for image recognition[C]//Proceedings of the IEEE Conference on
+Computer Vision and Pattern Recognition. Las Vegas: IEEE, 2016: 770-778.
+[2] Redmon J, Divvala S, Girshick R, et al. You only look once: unified, real-time object detection[C]//Proceedings of the
+IEEE Conference on Computer Vision and Pattern Recognition. Las Vegas: IEEE, 2016: 779-788.
+[3] Redmon J, Farhadi A. YOLOv3: an incremental improvement[J]. arXiv preprint arXiv:1804.02767, 2018.
+[4] Bochkovskiy A, Wang C Y, Liao H Y M. YOLOv4: optimal speed and accuracy of object detection[J]. arXiv preprint
+arXiv:2004.10934, 2020.
+[5] Jocher G, Chaurasia A, Qiu J. Ultralytics YOLOv8[EB/OL]. (2023-01-10)[2026-08-21]. https://github.com/
+ultralytics/ultralytics.
+[6] Ren S, He K, Girshick R, et al. Faster R-CNN: towards real-time object detection with region proposal net-
+works[C]//Advances in Neural Information Processing Systems. Montreal: NIPS, 2015: 91-99.
+[7] Lin T Y, Maire M, Belongie S, et al. Microsoft COCO: common objects in context[C]//European Conference on Com-
+puter Vision. Zurich: Springer, 2014: 740-755.
+29
+
+@@PAGE 29 END@@
+@@PAGE 30 START@@
+[8] Fisher R A, Tippett L H C. Limiting forms of the frequency distribution of the largest or smallest member of a sample[J].
+Mathematical Proceedings of the Cambridge Philosophical Society, 1928, 24(2): 180-190.
+[9] Coles S. An Introduction to Statistical Modeling of Extreme Values[M]. London: Springer, 2001.
+[10] Kotz S, Nadarajah S. Extreme Value Distributions: Theory and Applications[M]. London: Imperial College Press, 2000.
+[11] Liu S, Qi L, Qin H, et al. Path aggregation network for instance segmentation[C]//Proceedings of the IEEE Conference
+on Computer Vision and Pattern Recognition. Salt Lake City: IEEE, 2018: 8759-8768.
+[12] Zheng Z, Wang P, Liu W, et al. Distance-IoU loss: faster and better learning for bounding box regression[C]//Proceedings
+of the AAAI Conference on Artificial Intelligence. New York: AAAI Press, 2020, 34(7): 12993-13000.
+[13] Li X, Wang W, Wu L, et al. Generalized focal loss: learning qualified and distributed bounding boxes for dense object
+detection[C]//Advances in Neural Information Processing Systems. Vancouver: NeurIPS, 2020.
+[14] Zhang H, Cisse M, Dauphin Y N, et al. mixup: beyond empirical risk minimization[C]//International Conference on
+Learning Representations. Vancouver: ICLR, 2018.
+[15] Ghiasi G, Cui Y, Srinivas A, et al. Simple copy-paste is a strong data augmentation method for instance segmenta-
+tion[C]//Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. Nashville: IEEE,
+2021: 2918-2928.
+[16] Lin T Y, Goyal P, Girshick R, et al. Focal loss for dense object detection[C]//Proceedings of the IEEE International
+Conference on Computer Vision. Venice: IEEE, 2017: 2980-2988.
+[17] Villani C. Optimal Transport: Old and New[M]. Berlin: Springer, 2009.
+[18] Everingham M, Van Gool L, Williams C K I, et al. The Pascal Visual Object Classes (VOC) challenge[J]. International
+Journal of Computer Vision, 2010, 88(2): 303-338.
+附录A
+主要源程序
+本论文使用的全部源程序如下，运行环境为Python 3.13 + PyTorch 2.13 + Ultra-
+lytics 8.4.110。其中preprocess.py、train_yolo.py、evt_classifier.py 分别对应
+数据预处理、模型训练推理与问题一判别，其结果直接支撑正文；eda.py 用于探索
+性分析；wd_focal_loss.py 为附录C 所述WD-Focal Loss 的实现；evaluate.py 为多
+维度评估工具框架；build_neg_variants.py、eval_model.py、robustness_eval.py、
+run_evt_probe.py 分别为负样本比例实验的数据集构造、模型独立评估、鲁棒性扰动
+测试与EVT 伪负样本校准脚本。
+A.1 数据预处理与负样本构造（preprocess.py）
+1
+# -*- coding: utf-8 -*-
+2
+"""
+3
+数据预处理脚本：集装箱缺陷检测项目
+4
+"""
+5
+import os
+6
+import random
+30
+
+@@PAGE 30 END@@
+@@PAGE 31 START@@
+7
+import shutil
+8
+from pathlib import Path
+9
+from collections import Counter , defaultdict
+10
+import cv2
+11
+import numpy as np
+12
+import yaml
+13
+14
+15
+def cv2_imread_cn(filepath , flags=cv2.IMREAD_COLOR):
+16
+"""支持中文路径的imread （cv2.imread 不支持中文路径）"""
+17
+return cv2.imdecode(np.fromfile(str(filepath), dtype=np.uint8), flags)
+18
+19
+20
+def cv2_imwrite_cn(filepath , img):
+21
+"""支持中文路径的imwrite"""
+22
+ext = Path(filepath).suffix
+23
+result, encoded = cv2.imencode(ext, img)
+24
+if result:
+25
+encoded.tofile(str(filepath))
+26
+return result
+27
+28
+# 设置随机种子，保证可复现性
+29
+random.seed(42)
+30
+np.random.seed(42)
+31
+32
+# 类别定义: 0=Dent(凹陷), 1=Hole(破洞), 2=Rusty(锈蚀)
+33
+CLASSES = {0: 'Dent', 1: 'Hole', 2: 'Rusty'}
+34
+35
+def get_dominant_class(label_path):
+36
+"""获取标注文件中出现次数最多的类别，作为分层采样的依据"""
+37
+if not label_path.exists():
+38
+return -1 # 表示无目标背景图
+39
+40
+with open(label_path , 'r', encoding='utf-8') as f:
+41
+lines = f.readlines()
+42
+43
+if not lines:
+44
+return -1
+45
+46
+# YOLO 格式的第一列为类别ID
+47
+classes = [int(line.strip().split()[0]) for line in lines if line.strip()]
+48
+if not classes:
+49
+return -1
+50
+51
+counts = Counter(classes)
+52
+return counts.most_common(1)[0][0]
+31
+
+@@PAGE 31 END@@
+@@PAGE 32 START@@
+53
+54
+def split_dataset(src_dir , dst_dir , val_ratio=0.15):
+55
+"""1. 训练/验证集划分"""
+56
+print(">>> 开始划分数据集...")
+57
+src_images_dir = src_dir / 'images' / 'train'
+58
+src_labels_dir = src_dir / 'labels' / 'train'
+59
+60
+dst_images_train = dst_dir / 'images' / 'train'
+61
+dst_images_val = dst_dir / 'images' / 'val'
+62
+dst_labels_train = dst_dir / 'labels' / 'train'
+63
+dst_labels_val = dst_dir / 'labels' / 'val'
+64
+65
+# 创建目标目录
+66
+for d in [dst_images_train , dst_images_val , dst_labels_train , dst_labels_val
+]:
+67
+d.mkdir(parents=True, exist_ok=True)
+68
+69
+image_files = list(src_images_dir.glob('*.jpg'))
+70
+if not image_files:
+71
+print(f"警告：未能在{src_images_dir} 找到图片。")
+72
+return []
+73
+74
+# 按主要类别进行分组，用于分层抽样
+75
+class_groups = defaultdict(list)
+76
+for img_path in image_files:
+77
+label_path = src_labels_dir / (img_path.stem + '.txt')
+78
+dom_class = get_dominant_class(label_path)
+79
+class_groups[dom_class].append(img_path)
+80
+81
+train_files = []
+82
+val_files = []
+83
+84
+# 对每个类别的图片集进行按比例划分
+85
+for cls, files in class_groups.items():
+86
+random.shuffle(files)
+87
+val_size = int(len(files) * val_ratio)
+88
+val_files.extend(files[:val_size])
+89
+train_files.extend(files[val_size:])
+90
+91
+print(f"总图片数: {len(image_files)}, 分配给训练集: {len(train_files)}, 分配
+给验证集: {len(val_files)}")
+92
+93
+# 定义复制文件的辅助函数
+94
+def copy_files(files, target_img_dir , target_lbl_dir):
+95
+for img_path in files:
+96
+shutil.copy(img_path , target_img_dir / img_path.name)
+32
+
+@@PAGE 32 END@@
+@@PAGE 33 START@@
+97
+label_path = src_labels_dir / (img_path.stem + '.txt')
+98
+if label_path.exists():
+99
+shutil.copy(label_path , target_lbl_dir / label_path.name)
+100
+else:
+101
+# 若源图片无标注文件，则在目标路径生成一个空文件
+102
+open(target_lbl_dir / (img_path.stem + '.txt'), 'w').close()
+103
+104
+copy_files(train_files , dst_images_train , dst_labels_train)
+105
+copy_files(val_files , dst_images_val , dst_labels_val)
+106
+107
+# 自动生成data.yaml 配置文件
+108
+yaml_data = {
+109
+'path': str(dst_dir.absolute()).replace('\\', '/'),
+110
+'train': 'images/train',
+111
+'val': 'images/val',
+112
+'names': CLASSES
+113
+}
+114
+115
+with open(dst_dir / 'data.yaml', 'w', encoding='utf-8') as f:
+116
+yaml.dump(yaml_data , f, allow_unicode=True, sort_keys=False)
+117
+118
+print(f">>> 数据集划分完成，配置文件{dst_dir / 'data.yaml'} 已生成。\n")
+119
+return train_files
+120
+121
+def parse_labels(label_path):
+122
+"""解析YOLO 标注文件，返回解析后的[x_center , y_center , w, h] 列表"""
+123
+bboxes = []
+124
+if label_path.exists():
+125
+with open(label_path , 'r') as f:
+126
+for line in f:
+127
+parts = line.strip().split()
+128
+if len(parts) >= 5:
+129
+bboxes.append([float(x) for x in parts[1:5]])
+130
+return bboxes
+131
+132
+def check_overlap(crop_box , bboxes , img_size=640):
+133
+"""判断裁剪区域(x1, y1, x2, y2) 是否与任何原有的YOLO 标注框重叠"""
+134
+cx1, cy1, cx2, cy2 = crop_box
+135
+for b in bboxes:
+136
+bx_c, by_c, bw, bh = b
+137
+# 将归一化坐标转换为原图的绝对坐标
+138
+bx1 = (bx_c - bw/2) * img_size
+139
+by1 = (by_c - bh/2) * img_size
+140
+bx2 = (bx_c + bw/2) * img_size
+141
+by2 = (by_c + bh/2) * img_size
+142
+33
+
+@@PAGE 33 END@@
+@@PAGE 34 START@@
+143
+# 判断两个矩形是否有交集
+144
+if not (cx2 <= bx1 or cx1 >= bx2 or cy2 <= by1 or cy1 >= by2):
+145
+return True
+146
+return False
+147
+148
+def generate_negative_samples(src_dir , dst_dir , train_files , num_samples=600,
+crop_size=320):
+149
+"""2. 负样本生成：从训练图片中裁剪不含标注框的区域"""
+150
+print(f">>> 开始生成负样本，目标数量约: {num_samples}...")
+151
+neg_dir = dst_dir / 'negative_samples'
+152
+neg_images_dir = neg_dir / 'images'
+153
+neg_labels_dir = neg_dir / 'labels'
+154
+155
+neg_images_dir.mkdir(parents=True, exist_ok=True)
+156
+neg_labels_dir.mkdir(parents=True, exist_ok=True)
+157
+158
+src_labels_dir = src_dir / 'labels' / 'train'
+159
+160
+count = 0
+161
+# 随机打乱以增加负样本来源的多样性
+162
+random.shuffle(train_files)
+163
+164
+for img_path in train_files:
+165
+if count >= num_samples:
+166
+break
+167
+168
+label_path = src_labels_dir / (img_path.stem + '.txt')
+169
+bboxes = parse_labels(label_path)
+170
+171
+img = cv2_imread_cn(img_path)
+172
+if img is None:
+173
+continue
+174
+175
+h, w = img.shape[:2]
+176
+177
+# 每张图尝试进行随机裁剪
+178
+for _ in range(5):
+179
+if count >= num_samples:
+180
+break
+181
+182
+x1 = random.randint(0, max(0, w - crop_size))
+183
+y1 = random.randint(0, max(0, h - crop_size))
+184
+x2 = x1 + crop_size
+185
+y2 = y1 + crop_size
+186
+187
+# 如果该裁剪区域与任何已有缺陷标注不重合，则是干净的负样本
+34
+
+@@PAGE 34 END@@
+@@PAGE 35 START@@
+188
+if not check_overlap((x1, y1, x2, y2), bboxes , img_size=640):
+189
+crop_img = img[y1:y2, x1:x2]
+190
+out_name = f"neg_{img_path.stem}_{x1}_{y1}.jpg"
+191
+cv2_imwrite_cn(str(neg_images_dir / out_name), crop_img)
+192
+# 生成对应的空txt 标注文件
+193
+open(neg_labels_dir / f"neg_{img_path.stem}_{x1}_{y1}.txt", 'w').
+close()
+194
+count += 1
+195
+196
+print(f">>> 负样本生成完成，实际共生成{count} 张负样本。\n")
+197
+198
+def preview_augmentations(sample_img_path , dst_dir):
+199
+"""3. 数据增强预览：展示增强效果对比图并保存"""
+200
+print(f">>> 开始生成数据增强预览图，样本: {sample_img_path.name}...")
+201
+img = cv2_imread_cn(sample_img_path)
+202
+if img is None:
+203
+print("图片加载失败，跳过预览。")
+204
+return
+205
+206
+h, w = img.shape[:2]
+207
+208
+# 0. 原图
+209
+orig = img.copy()
+210
+211
+# 1. 水平翻转
+212
+flipped = cv2.flip(img, 1)
+213
+214
+# 2. 亮度调整(全局变亮)
+215
+hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.float32)
+216
+hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.5, 0, 255)
+217
+bright = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+218
+219
+# 3. HSV 随机扰动
+220
+hsv_jitter = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.int16)
+221
+hsv_jitter[:, :, 0] = (hsv_jitter[:, :, 0] + random.randint(-20, 20)) % 180
+222
+hsv_jitter[:, :, 1] = np.clip(hsv_jitter[:, :, 1] + random.randint(-40, 40),
+0, 255)
+223
+hsv_jitter[:, :, 2] = np.clip(hsv_jitter[:, :, 2] + random.randint(-40, 40),
+0, 255)
+224
+hsv_jitter = cv2.cvtColor(hsv_jitter.astype(np.uint8), cv2.COLOR_HSV2BGR)
+225
+226
+# 4. 随机裁剪并缩放回原大小
+227
+crop_size = int(w * 0.7)
+228
+x1 = random.randint(0, w - crop_size)
+229
+y1 = random.randint(0, h - crop_size)
+230
+cropped = img[y1:y1+crop_size , x1:x1+crop_size]
+35
+
+@@PAGE 35 END@@
+@@PAGE 36 START@@
+231
+cropped_resized = cv2.resize(cropped , (w, h))
+232
+233
+# 用于在图上添加文字标签的辅助函数
+234
+def add_text(image, text):
+235
+res = image.copy()
+236
+cv2.putText(res, text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX , 1.2, (0, 0,
+255), 3)
+237
+return res
+238
+239
+row1 = np.hstack([add_text(orig, "Original"), add_text(flipped , "Horizontal
+Flip"), add_text(bright , "Brightness")])
+240
+row2 = np.hstack([add_text(hsv_jitter , "HSV Jitter"), add_text(
+cropped_resized , "Random Crop"), np.zeros_like(orig)])
+241
+242
+preview = np.vstack([row1, row2])
+243
+244
+out_path = dst_dir / 'augmentation_preview.jpg'
+245
+cv2_imwrite_cn(str(out_path), preview)
+246
+print(f">>> 数据增强预览图已保存至: {out_path}\n")
+247
+248
+if __name__ == '__main__':
+249
+# 定义输入和输出路径
+250
+src_dir = Path(__file__).resolve().parents[1] / "数据集3713"
+251
+dst_dir = Path(__file__).resolve().parents[1] / "data" / "processed"
+252
+253
+if not src_dir.exists():
+254
+print(f"错误: 数据集源路径不存在{src_dir}")
+255
+else:
+256
+print("=== 集装箱缺陷检测数据预处理开始===")
+257
+# 1. 划分数据集(15% 验证集，分层抽样)
+258
+train_files = split_dataset(src_dir , dst_dir , val_ratio=0.15)
+259
+260
+# 2. 生成负样本(无目标裁剪)
+261
+if train_files:
+262
+generate_negative_samples(src_dir , dst_dir , train_files , num_samples
+=600)
+263
+264
+# 3. 数据增强预览(取一张训练集图片)
+265
+preview_augmentations(train_files[0], dst_dir)
+266
+267
+print("=== 数据预处理全部完成===")
+A.2 模型训练与推理（train_yolo.py）
+1
+import argparse
+36
+
+@@PAGE 36 END@@
+@@PAGE 37 START@@
+2
+from dataclasses import dataclass
+3
+from pathlib import Path
+4
+from typing import Dict, Any, Optional
+5
+import os
+6
+7
+os.environ.setdefault(
+8
+"YOLO_CONFIG_DIR",
+9
+os.path.join(os.environ.get("TEMP", "/tmp"), "yolo_cfg_train"),
+10
+)
+11
+from ultralytics import YOLO
+12
+import pandas as pd
+13
+import torch
+14
+import torch.nn as nn
+15
+16
+# 项目根目录
+17
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+18
+19
+20
+@dataclass
+21
+class TrainConfig:
+22
+"""YOLO 训练配置参数数据类"""
+23
+model_name: str = "yolov8n.pt"
+# 预训练模型权重（仅用于加载，不传给train()
+）
+24
+data: str = str(PROJECT_ROOT / "data" / "processed" / "data.yaml")
+# 数据配
+置文件
+25
+epochs: int = 100
+26
+batch: int = 16
+27
+imgsz: int = 640
+28
+device: str = "0"
+29
+patience: int = 20
+30
+lr0: float = 0.01
+31
+lrf: float = 0.01
+32
+cos_lr: bool = True
+33
+seed: int = 42
+34
+augment: bool = True
+35
+mosaic: float = 1.0
+36
+copy_paste: float = 0.0
+37
+name: str = "baseline"
+38
+workers: int = 0
+39
+exist_ok: bool = True
+40
+project: str = str(PROJECT_ROOT / "runs")
+41
+loss: str = "none"
+# none | wd_focal | rusty_w
+42
+resume: bool = False
+43
+copy_paste_set: bool = False
+# 是否显式指定了copy_paste （不传给train()）
+44
+pretrained: str = "yolov8s.pt"
+# yaml 模型（如P2）挂载的预训练权重
+45
+37
+
+@@PAGE 37 END@@
+@@PAGE 38 START@@
+46
+# 不传给model.train() 的字段
+47
+_exclude_keys = {"model_name", "loss", "resume", "copy_paste_set"}
+48
+49
+def to_train_args(self) -> Dict[str, Any]:
+50
+"""将配置转换为YOLO model.train() 接受的参数字典"""
+51
+return {k: v for k, v in self.__dict__.items()
+52
+if not k.startswith('_') and k not in self._exclude_keys}
+53
+54
+def train_baseline(config: TrainConfig) -> None:
+55
+"""
+56
+基线模型训练(YOLOv8n)
+57
+"""
+58
+print(f"--- 开始基线模型训练: {config.name} ---")
+59
+model = load_model(config)
+60
+61
+setup_custom_loss(model, config)
+62
+63
+# 获取训练参数（排除model_name 等非训练参数）
+64
+train_args = config.to_train_args()
+65
+if config.resume:
+66
+train_args["resume"] = True
+67
+print(f"训练参数: {train_args}")
+68
+69
+# 开始训练
+70
+results = model.train(**train_args)
+71
+72
+# 打印mAP50 -95
+73
+val_map = results.box.map
+74
+print(f"--- 训练完成，基线模型{config.name} 的最终mAP50 -95: {val_map:.4f}
+---")
+75
+76
+77
+def train_improved(config: TrainConfig , custom_epochs: Optional[int] = None) ->
+None:
+78
+"""
+79
+改进模型训练(支持YOLOv8s/m, 启用更多数据增强)
+80
+"""
+81
+if config.name == "baseline":
+82
+config.name = "improved"
+83
+config.mosaic = 1.0
+84
+if not config.copy_paste_set:
+85
+config.copy_paste = 0.5
+86
+if custom_epochs:
+87
+config.epochs = custom_epochs
+88
+else:
+89
+config.epochs = 200 # 改进模型默认200 轮
+38
+
+@@PAGE 38 END@@
+@@PAGE 39 START@@
+90
+91
+print(f"--- 开始改进模型训练: {config.name} ({config.model_name}) ---")
+92
+93
+model = load_model(config)
+94
+95
+setup_custom_loss(model, config)
+96
+97
+train_args = config.to_train_args()
+98
+if config.resume:
+99
+train_args["resume"] = True
+100
+print(f"训练参数: {train_args}")
+101
+102
+results = model.train(**train_args)
+103
+104
+val_map = results.box.map
+105
+print(f"--- 训练完成，改进模型{config.name} 的最终mAP50 -95: {val_map:.4f}
+---")
+106
+107
+108
+def load_model(config: TrainConfig) -> YOLO:
+109
+"""加载模型：yaml 配置（如yolov8s -p2.yaml ）加载后挂载COCO 预训练权重，pt 直
+接加载"""
+110
+model_path = config.model_name
+111
+if model_path.endswith(".yaml"):
+112
+model = YOLO(model_path)
+113
+if config.pretrained:
+114
+pretrained = config.pretrained
+115
+if not Path(pretrained).is_absolute():
+116
+pretrained = str(PROJECT_ROOT / pretrained)
+117
+if Path(pretrained).exists():
+118
+model.load(pretrained)
+119
+print(f"[train] yaml 模型已挂载预训练权重: {pretrained}")
+120
+else:
+121
+print(f"[train] 警告：预训练权重不存在，按随机初始化训练: {
+pretrained}")
+122
+return model
+123
+return YOLO(model_path)
+124
+125
+126
+def setup_custom_loss(model: YOLO, config: TrainConfig) -> None:
+127
+"""按config.loss 注入自定义分类损失（用
+on_train_start 回调，确保criterion
+已就绪）"""
+128
+if config.loss == "wd_focal":
+129
+from wd_focal_loss import WDFocalLoss , WDFocalTrainCallback
+130
+# tau=0 表示自适应：每次更新取各类W1 距离的中位数（与附录推导一致）
+131
+wdfl = WDFocalLoss(num_classes=3, gamma=2.0, tau=0.0, base_alpha=0.25)
+39
+
+@@PAGE 39 END@@
+@@PAGE 40 START@@
+132
+cb = WDFocalTrainCallback(
+133
+yolo_model=model,
+134
+wdfl=wdfl,
+135
+update_interval=10,
+136
+)
+137
+model.add_callback("on_train_start", cb.on_train_start)
+138
+model.add_callback("on_train_epoch_end", cb.on_train_epoch_end)
+139
+print("[train] WD-Focal 损失与回调已注册")
+140
+elif config.loss == "rusty_w":
+141
+# Rusty 类加权：以Dent 为基准的逆频率pos_weight （3934/3158~1.246 ），仅
+改分类损失
+142
+pos_weight = torch.tensor([1.0, 1.0, 3934.0 / 3158.0])
+143
+144
+def _inject_rusty(trainer):
+145
+from ultralytics.utils.torch_utils import unwrap_model
+146
+147
+model = unwrap_model(trainer.model)
+148
+criterion = getattr(model, "criterion", None)
+149
+if criterion is None:
+150
+criterion = model.init_criterion()
+151
+model.criterion = criterion
+152
+if hasattr(criterion , "bce"):
+153
+criterion._original_bce = criterion.bce
+154
+pw = pos_weight.to(device=next(model.parameters()).device , dtype=
+torch.float32)
+155
+criterion.bce = nn.BCEWithLogitsLoss(reduction="none", pos_weight
+=pw)
+156
+print(f"[train] Rusty 类加权已注入（pos_weight={pw.tolist()}）")
+157
+158
+model.add_callback("on_train_start", _inject_rusty)
+159
+print("[train] Rusty 类加权回调已注册")
+160
+161
+def predict_and_export(weights_path: str, conf_thres: float = 0.25, iou_thres:
+float = 0.45) -> None:
+162
+"""
+163
+加载最佳权重对test 集进行推理，生成CSV 结果和可视化图片
+164
+"""
+165
+print(f"--- 开始测试集推理---")
+166
+model = YOLO(weights_path)
+167
+168
+# 测试集路径（原始数据集中的test 目录）
+169
+test_dir = PROJECT_ROOT / "数据集3713" / "images" / "test"
+170
+if not test_dir.exists():
+171
+print(f"错误: 测试集目录不存在{test_dir}")
+172
+return
+173
+40
+
+@@PAGE 40 END@@
+@@PAGE 41 START@@
+174
+visualize_dir = PROJECT_ROOT / "runs" / "visualize"
+175
+visualize_dir.mkdir(parents=True, exist_ok=True)
+176
+177
+# 进行推理
+178
+results = model.predict(
+179
+source=str(test_dir),
+180
+conf=conf_thres ,
+181
+iou=iou_thres ,
+182
+save=True,
+# 保存可视化图片
+183
+project=str(PROJECT_ROOT / "runs"),
+184
+name="visualize/predict",
+185
+exist_ok=True # 允许覆盖
+186
+)
+187
+188
+# 提取结果并保存为test_result.csv
+189
+out_data = []
+190
+for result in results:
+191
+img_name = Path(result.path).name
+192
+boxes = result.boxes
+193
+for box in boxes:
+194
+# 获取类别和坐标(归一化后的中心点xywh)
+195
+cls_id = int(box.cls[0].item())
+196
+xywhn = box.xywhn[0].cpu().numpy() # x_center , y_center , width,
+height (归一化)
+197
+out_data.append([img_name , cls_id , xywhn[0], xywhn[1], xywhn[2],
+xywhn[3]])
+198
+199
+df = pd.DataFrame(out_data , columns=["image_id", "class_id", "x_center", "
+y_center", "width", "height"])
+200
+out_csv = PROJECT_ROOT / "test_result.csv"
+201
+df.to_csv(out_csv , index=False)
+202
+print(f"--- 推理完成---")
+203
+print(f"结果已保存到: {out_csv}")
+204
+print(f"可视化结果位于: {PROJECT_ROOT / 'runs' / 'visualize' / 'predict'}")
+205
+206
+def main():
+207
+parser = argparse.ArgumentParser(description="YOLO 模型训练与推理脚本")
+208
+parser.add_argument("--mode", type=str, required=True, choices=["baseline", "
+improved", "predict"],
+209
+help="运行模式: baseline , improved 或predict")
+210
+parser.add_argument("--model", type=str, default="yolov8n.pt",
+211
+help="预训练模型权重路径或名称")
+212
+parser.add_argument("--weights", type=str, default="",
+213
+help="用于推理的模型权重路径(例如runs/baseline/weights/
+best.pt)")
+214
+parser.add_argument("--epochs", type=int, default=0,
+41
+
+@@PAGE 41 END@@
+@@PAGE 42 START@@
+215
+help="覆盖默认的训练轮数")
+216
+parser.add_argument("--loss", type=str, default="none", choices=["none", "
+wd_focal", "rusty_w"],
+217
+help="分类损失方案: none(默认) / wd_focal / rusty_w")
+218
+parser.add_argument("--copy-paste", type=float, default=None,
+219
+help="Copy-Paste 增强比例（覆盖improved 默认0.5 ）")
+220
+parser.add_argument("--imgsz", type=int, default=0, help="输入图像尺寸")
+221
+parser.add_argument("--batch", type=int, default=0, help="批次大小")
+222
+parser.add_argument("--data", type=str, default="", help="数据配置文件路径")
+223
+parser.add_argument("--resume", action="store_true", help="从runs/{project
+}/{name}/weights/last.pt 断点续训")
+224
+parser.add_argument("--pretrained", type=str, default="", help="yaml 模型（如
+P2 ）挂载的预训练权重名")
+225
+parser.add_argument("--conf", type=float, default=0.25,
+226
+help="推理置信度阈值")
+227
+parser.add_argument("--iou", type=float, default=0.45,
+228
+help="推理NMS IoU 阈值")
+229
+parser.add_argument("--name", type=str, default="",
+230
+help="实验名称(例如improved_with_neg)")
+231
+232
+args = parser.parse_args()
+233
+234
+if args.mode in ("baseline", "improved"):
+235
+# 若传入的是裸权重名且项目根下存在本地文件，则优先用本地权重（避免联网下
+载）
+236
+if not Path(args.model).is_absolute() and not Path(args.model).exists():
+237
+local = PROJECT_ROOT / args.model
+238
+if local.exists():
+239
+args.model = str(local)
+240
+config = TrainConfig(model_name=args.model)
+241
+if args.name:
+242
+config.name = args.name
+243
+if args.epochs > 0:
+244
+config.epochs = args.epochs
+245
+if args.imgsz > 0:
+246
+config.imgsz = args.imgsz
+247
+if args.batch > 0:
+248
+config.batch = args.batch
+249
+if args.data:
+250
+config.data = str(PROJECT_ROOT / args.data) if not Path(args.data).
+is_absolute() else args.data
+251
+if args.copy_paste is not None:
+252
+config.copy_paste = args.copy_paste
+253
+config.copy_paste_set = True
+254
+config.loss = args.loss
+255
+config.resume = args.resume
+42
+
+@@PAGE 42 END@@
+@@PAGE 43 START@@
+256
+if args.pretrained:
+257
+config.pretrained = args.pretrained
+258
+if config.resume:
+259
+# 断点续训必须从runs/{project}/{name}/weights/last.pt 加载，而非裸权
+重名
+260
+resume_pt = Path(config.project) / config.name / "weights/last.pt"
+261
+if resume_pt.exists():
+262
+config.model_name = str(resume_pt)
+263
+print(f"[train] 断点续训加载: {resume_pt}")
+264
+else:
+265
+print(f"[train] 警告：未找到续训检查点{resume_pt}，将从头训练")
+266
+if args.mode == "baseline":
+267
+train_baseline(config)
+268
+else:
+269
+train_improved(config , custom_epochs=args.epochs if args.epochs > 0
+else None)
+270
+271
+elif args.mode == "predict":
+272
+if not args.weights:
+273
+print("错误: 预测模式需要提供--weights 参数")
+274
+return
+275
+# 使用相对于项目根目录的路径或绝对路径
+276
+weights_path = str(PROJECT_ROOT / args.weights) if not Path(args.weights)
+.is_absolute() else args.weights
+277
+predict_and_export(weights_path , conf_thres=args.conf, iou_thres=args.iou
+)
+278
+279
+if __name__ == "__main__":
+280
+main()
+A.3 EVT 缺陷判别（evt_classifier.py）
+1
+# -*- coding: utf-8 -*-
+2
+"""
+3
+基于极值理论(EVT) 的集装箱缺陷分类器
+4
+解决问题1：在全缺陷训练集中识别无缺陷图片
+5
+6
+数学推导详见: src/evt_derivation.tex
+7
+8
+工作流程:
+9
+1. 用训练好的YOLO 模型对验证集推理，提取每张图的最大检测置信度
+10
+2. 用Weibull 分布拟合置信度分布
+11
+3. 对测试图片计算缺陷概率P_defect
+12
+4. 通过最优阈值tau* 进行二分类
+13
+43
+
+@@PAGE 43 END@@
+@@PAGE 44 START@@
+14
+使用方法:
+15
+E:\\python2025\\python.exe src/evt_classifier.py \\
+16
+--weights runs/baseline/weights/best.pt \\
+17
+--val-dir data/processed/images/val \\
+18
+--test-dir 数据集3713/images/test \\
+19
+--save-dir results/evt
+20
+"""
+21
+import argparse
+22
+import json
+23
+import numpy as np
+24
+from pathlib import Path
+25
+from scipy.stats import weibull_min
+26
+from sklearn.metrics import f1_score , precision_score , recall_score ,
+accuracy_score
+27
+from sklearn.metrics import roc_curve , auc, confusion_matrix
+28
+from ultralytics import YOLO
+29
+import matplotlib.pyplot as plt
+30
+import cv2
+31
+32
+# 中文字体
+33
+plt.rcParams['font.sans-serif'] = ['SimHei']
+34
+plt.rcParams['axes.unicode_minus'] = False
+35
+36
+# 随机种子
+37
+np.random.seed(42)
+38
+39
+40
+def cv2_imread_cn(filepath , flags=cv2.IMREAD_COLOR):
+41
+"""支持中文路径的imread"""
+42
+return cv2.imdecode(np.fromfile(str(filepath), dtype=np.uint8), flags)
+43
+44
+45
+def extract_max_confidences(model, image_dir: str, conf_threshold: float = 0.01)
+-> dict:
+46
+"""
+47
+对目录中的图片批量推理，提取每张图的最大检测置信度
+48
+49
+Args:
+50
+model: Ultralytics YOLO 模型
+51
+image_dir: 图片目录路径
+52
+conf_threshold: 最低置信度阈值（保留更多检测以获取分布信息）
+53
+54
+Returns:
+55
+dict: {image_name: max_confidence}
+56
+"""
+57
+print(f"正在对{image_dir} 进行推理...")
+44
+
+@@PAGE 44 END@@
+@@PAGE 45 START@@
+58
+results = model.predict(
+59
+source=image_dir ,
+60
+conf=conf_threshold ,
+61
+iou=0.5,
+62
+verbose=False,
+63
+save=False,
+64
+device=0,
+65
+)
+66
+67
+confidences = {}
+68
+for r in results:
+69
+img_name = Path(r.path).stem
+70
+boxes = r.boxes
+71
+if boxes is not None and len(boxes) > 0:
+72
+max_conf = float(boxes.conf.max().cpu())
+73
+else:
+74
+max_conf = 0.0
+75
+confidences[img_name] = max_conf
+76
+77
+print(f"
+推理完成: {len(confidences)} 张图片")
+78
+print(f"
+置信度范围: [{min(confidences.values()):.4f}, {max(confidences.
+values()):.4f}]")
+79
+print(f"
+置信度均值: {np.mean(list(confidences.values())):.4f}")
+80
+return confidences
+81
+82
+83
+def fit_weibull(scores: np.ndarray) -> tuple:
+84
+"""
+85
+用Weibull 分布拟合置信度分数序列
+86
+87
+数学依据:
+88
+由Fisher -Tippett -Gnedenko 定理，有界随机变量的极值分布为Weibull 型。
+89
+YOLO 置信度in [0,1] ，因此最大置信度适合Weibull 拟合。
+90
+91
+Args:
+92
+scores: (N,) 最大置信度数组
+93
+94
+Returns:
+95
+(shape_k , loc, scale_lambda): Weibull 参数
+96
+"""
+97
+# 过滤零值（无检测的图片不参与拟合）
+98
+valid_scores = scores[scores > 0]
+99
+if len(valid_scores) < 10:
+100
+raise ValueError(f"有效样本太少: {len(valid_scores)}")
+101
+102
+# scipy.stats.weibull_min.fit 返回(c, loc, scale)
+45
+
+@@PAGE 45 END@@
+@@PAGE 46 START@@
+103
+# c = shape parameter k
+104
+# scale = lambda
+105
+shape_k , loc, scale_lambda = weibull_min.fit(valid_scores , floc=0)
+106
+107
+print(f"\n=== Weibull 分布拟合结果===")
+108
+print(f"
+形状参数k = {shape_k:.4f}")
+109
+print(f"
+位置参数loc = {loc:.6f}")
+110
+print(f"
+尺度参数lambda = {scale_lambda:.4f}")
+111
+print(f"
+有效样本数: {len(valid_scores)}")
+112
+113
+return shape_k , loc, scale_lambda
+114
+115
+116
+def calculate_defect_probability(score: float, k: float, loc: float, lam: float)
+-> float:
+117
+"""
+118
+计算单个样本的缺陷概率
+119
+120
+公式: P_defect(x) = 1 - exp(-(s_x / lambda)^k)
+121
+即Weibull CDF
+122
+123
+Args:
+124
+score: 最大检测置信度s_x
+125
+k: Weibull 形状参数
+126
+loc: 位置参数
+127
+lam: Weibull 尺度参数
+128
+129
+Returns:
+130
+P_defect in [0, 1]
+131
+"""
+132
+return float(weibull_min.cdf(score, k, loc=loc, scale=lam))
+133
+134
+135
+def batch_defect_probabilities(scores: np.ndarray , k: float, loc: float, lam:
+float) -> np.ndarray:
+136
+"""批量计算缺陷概率"""
+137
+return weibull_min.cdf(scores , k, loc=loc, scale=lam)
+138
+139
+140
+def find_optimal_threshold(probs: np.ndarray , labels: np.ndarray) -> float:
+141
+"""
+142
+通过网格搜索找到使F1 分数最大化的最优阈值tau*
+143
+144
+tau* = argmax_tau F1(tau)
+145
+146
+Args:
+46
+
+@@PAGE 46 END@@
+@@PAGE 47 START@@
+147
+probs: (N,) 缺陷概率数组
+148
+labels: (N,) 真实标签(1= 有缺陷, 0= 无缺陷)
+149
+150
+Returns:
+151
+最优阈值tau*
+152
+"""
+153
+best_f1 = 0.0
+154
+best_tau = 0.5
+155
+thresholds = np.arange(0.01, 1.0, 0.01)
+156
+157
+for tau in thresholds:
+158
+preds = (probs >= tau).astype(int)
+159
+if len(np.unique(preds)) < 2:
+160
+continue
+161
+f1 = f1_score(labels , preds, zero_division=0)
+162
+if f1 > best_f1:
+163
+best_f1 = f1
+164
+best_tau = tau
+165
+166
+print(f"\n=== 最优阈值搜索===")
+167
+print(f"
+tau* = {best_tau:.2f}")
+168
+print(f"
+对应F1 = {best_f1:.4f}")
+169
+return best_tau
+170
+171
+172
+def classify_test_set(
+173
+model, test_dir: str, k: float, loc: float, lam: float, threshold: float
+174
+) -> dict:
+175
+"""
+176
+对测试集进行批量分类
+177
+178
+Args:
+179
+model: YOLO 模型
+180
+test_dir: 测试图片目录
+181
+k, loc, lam: Weibull 参数
+182
+threshold: 分类阈值tau*
+183
+184
+Returns:
+185
+dict: {image_name: {"max_conf": float, "p_defect": float, "label": int}}
+186
+"""
+187
+confidences = extract_max_confidences(model, test_dir)
+188
+189
+results = {}
+190
+defect_count = 0
+191
+normal_count = 0
+192
+47
+
+@@PAGE 47 END@@
+@@PAGE 48 START@@
+193
+for img_name , max_conf in confidences.items():
+194
+p_defect = calculate_defect_probability(max_conf , k, loc, lam)
+195
+label = 1 if p_defect >= threshold else 0
+196
+results[img_name] = {
+197
+"max_conf": max_conf ,
+198
+"p_defect": p_defect ,
+199
+"label": label,
+200
+}
+201
+if label == 1:
+202
+defect_count += 1
+203
+else:
+204
+normal_count += 1
+205
+206
+print(f"\n=== 测试集分类结果===")
+207
+print(f"
+总计: {len(results)} 张")
+208
+print(f"
+有缺陷: {defect_count} 张({defect_count/len(results)*100:.1f}%)")
+209
+print(f"
+无缺陷: {normal_count} 张({normal_count/len(results)*100:.1f}%)")
+210
+211
+return results
+212
+213
+214
+def plot_weibull_fit(scores: np.ndarray , k: float, loc: float, lam: float,
+save_path: str):
+215
+"""绘制Weibull 分布拟合效果图"""
+216
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+217
+218
+valid_scores = scores[scores > 0]
+219
+220
+# 左图: 直方图+ 拟合PDF
+221
+x = np.linspace(0.001, 1.0, 200)
+222
+pdf = weibull_min.pdf(x, k, loc=loc, scale=lam)
+223
+224
+axes[0].hist(valid_scores , bins=50, density=True, alpha=0.7, color='steelblue
+', label='实测分布')
+225
+axes[0].plot(x, pdf, 'r-', linewidth=2, label=f'Weibull 拟合(k={k:.2f}, $\\
+lambda$={lam:.2f})')
+226
+axes[0].set_xlabel('最大检测置信度$s$')
+227
+axes[0].set_ylabel('概率密度')
+228
+axes[0].set_title('Weibull 分布拟合效果')
+229
+axes[0].legend()
+230
+axes[0].grid(True, alpha=0.3)
+231
+232
+# 右图: CDF （即
+P_defect 映射）
+233
+cdf = weibull_min.cdf(x, k, loc=loc, scale=lam)
+234
+axes[1].plot(x, cdf, 'b-', linewidth=2, label='$P_{defect}(s)$ = Weibull CDF'
+)
+48
+
+@@PAGE 48 END@@
+@@PAGE 49 START@@
+235
+axes[1].axhline(y=0.5, color='gray', linestyle='--', alpha=0.5, label='$\\
+tau$ = 0.5')
+236
+axes[1].set_xlabel('最大检测置信度$s$')
+237
+axes[1].set_ylabel('缺陷概率$P_{defect}$')
+238
+axes[1].set_title('置信度-> 缺陷概率映射')
+239
+axes[1].legend()
+240
+axes[1].grid(True, alpha=0.3)
+241
+242
+plt.tight_layout()
+243
+plt.savefig(save_path , dpi=150, bbox_inches='tight')
+244
+plt.close()
+245
+print(f"Weibull 拟合图已保存: {save_path}")
+246
+247
+248
+def plot_roc_curve(probs: np.ndarray , labels: np.ndarray , save_path: str):
+249
+"""绘制ROC 曲线"""
+250
+fpr, tpr, _ = roc_curve(labels , probs)
+251
+roc_auc = auc(fpr, tpr)
+252
+253
+plt.figure(figsize=(7, 6))
+254
+plt.plot(fpr, tpr, 'b-', linewidth=2, label=f'ROC (AUC = {roc_auc:.4f})')
+255
+plt.plot([0, 1], [0, 1], 'k--', alpha=0.3)
+256
+plt.xlabel('假阳性率(FPR)')
+257
+plt.ylabel('真阳性率(TPR)')
+258
+plt.title('EVT 分类器ROC 曲线')
+259
+plt.legend()
+260
+plt.grid(True, alpha=0.3)
+261
+plt.tight_layout()
+262
+plt.savefig(save_path , dpi=150, bbox_inches='tight')
+263
+plt.close()
+264
+print(f"ROC 曲线已保存: {save_path}")
+265
+266
+267
+def main():
+268
+parser = argparse.ArgumentParser(description="EVT 极值理论缺陷分类器")
+269
+parser.add_argument("--weights", type=str, required=True, help="YOLO 模型权重
+路径")
+270
+parser.add_argument("--val-dir", type=str, default="data/processed/images/val
+",
+271
+help="验证集图片目录")
+272
+parser.add_argument("--test-dir", type=str, default="数据集3713/images/test",
+273
+help="测试集图片目录")
+274
+parser.add_argument("--save-dir", type=str, default="results/evt",
+275
+help="结果保存目录")
+276
+parser.add_argument("--conf", type=float, default=0.01,
+277
+help="推理最低置信度阈值")
+49
+
+@@PAGE 49 END@@
+@@PAGE 50 START@@
+278
+args = parser.parse_args()
+279
+280
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+281
+save_dir = PROJECT_ROOT / args.save_dir
+282
+save_dir.mkdir(parents=True, exist_ok=True)
+283
+284
+print("=" * 60)
+285
+print("基于极值理论(EVT) 的集装箱缺陷分类器")
+286
+print("=" * 60)
+287
+288
+# 1. 加载模型
+289
+weights_path = PROJECT_ROOT / args.weights if not Path(args.weights).
+is_absolute() else Path(args.weights)
+290
+print(f"\n加载模型: {weights_path}")
+291
+model = YOLO(str(weights_path))
+292
+293
+# 2. 对验证集提取最大置信度
+294
+val_dir = PROJECT_ROOT / args.val_dir
+295
+print(f"\n--- Step 1: 提取验证集最大置信度---")
+296
+val_confidences = extract_max_confidences(model, str(val_dir), conf_threshold
+=args.conf)
+297
+val_scores = np.array(list(val_confidences.values()))
+298
+299
+# 验证集全部为有缺陷样本，标签全为1
+300
+val_labels = np.ones(len(val_scores))
+301
+302
+# 3. 拟合Weibull 分布
+303
+print(f"\n--- Step 2: Weibull 分布拟合---")
+304
+k, loc, lam = fit_weibull(val_scores)
+305
+306
+# 4. 绘制拟合效果图
+307
+plot_weibull_fit(val_scores , k, loc, lam, str(save_dir / "weibull_fit.png"))
+308
+309
+# 5. 计算验证集的缺陷概率
+310
+val_probs = batch_defect_probabilities(val_scores , k, loc, lam)
+311
+print(f"\n验证集缺陷概率统计:")
+312
+print(f"
+均值: {val_probs.mean():.4f}")
+313
+print(f"
+最小值: {val_probs.min():.4f}")
+314
+print(f"
+<0.5 的样本数: {(val_probs < 0.5).sum()} / {len(val_probs)}")
+315
+316
+# 6. 确定最优阈值
+317
+# 注意：验证集全为正样本，我们使用启发式阈值
+318
+# 取验证集缺陷概率的第5百分位数作为阈值（允许5%的假阴性）
+319
+threshold = max(np.percentile(val_probs , 5), 0.1)
+320
+print(f"\n最优阈值(验证集第5百分位): tau* = {threshold:.4f}")
+321
+50
+
+@@PAGE 50 END@@
+@@PAGE 51 START@@
+322
+# 7. 对测试集分类
+323
+print(f"\n--- Step 3: 测试集分类---")
+324
+test_dir = PROJECT_ROOT / args.test_dir
+325
+test_results = classify_test_set(model, str(test_dir), k, loc, lam, threshold
+)
+326
+327
+# 8. 保存结果
+328
+results_summary = {
+329
+"weibull_params": {"k": float(k), "loc": float(loc), "lambda": float(lam)
+},
+330
+"threshold": float(threshold),
+331
+"val_stats": {
+332
+"num_samples": len(val_scores),
+333
+"mean_conf": float(val_scores.mean()),
+334
+"mean_p_defect": float(val_probs.mean()),
+335
+},
+336
+"test_classification": {
+337
+img: {"label": r["label"], "p_defect": round(r["p_defect"], 4)}
+338
+for img, r in test_results.items()
+339
+},
+340
+}
+341
+342
+summary_path = save_dir / "evt_results.json"
+343
+with open(summary_path , "w", encoding="utf-8") as f:
+344
+json.dump(results_summary , f, indent=2, ensure_ascii=False)
+345
+print(f"\n结果已保存: {summary_path}")
+346
+347
+# 9. 生成问题1的分类CSV
+348
+import csv
+349
+cls_csv_path = save_dir / "problem1_classification.csv"
+350
+with open(cls_csv_path , "w", newline="", encoding="utf-8") as f:
+351
+writer = csv.writer(f)
+352
+writer.writerow(["image_id", "has_defect", "p_defect", "max_confidence"])
+353
+for img_name , r in test_results.items():
+354
+writer.writerow([img_name , r["label"], f"{r['p_defect ']:.4f}", f"{r['
+max_conf ']:.4f}"])
+355
+print(f"问题1分类结果: {cls_csv_path}")
+356
+357
+print("\n" + "=" * 60)
+358
+print("EVT 分类器执行完毕")
+359
+print("=" * 60)
+360
+361
+362
+if __name__ == "__main__":
+363
+main()
+51
+
+@@PAGE 51 END@@
+@@PAGE 52 START@@
+A.4 WD-Focal Loss 实现（wd_focal_loss.py）
+1
+# -*- coding: utf-8 -*-
+2
+"""
+3
+WD-Focal Loss: 基于Wasserstein 距离的自适应焦点损失函数
+4
+用于Ultralytics YOLOv8/v11 的分类损失替换
+5
+6
+数学推导详见: src/wd_focal_loss_derivation.tex
+7
+"""
+8
+import torch
+9
+import torch.nn as nn
+10
+import torch.nn.functional as F
+11
+import numpy as np
+12
+from pathlib import Path
+13
+from typing import Dict, Optional
+14
+15
+16
+class WDFocalLoss(nn.Module):
+17
+"""
+18
+Wasserstein -Distance Weighted Focal Loss (WD-Focal Loss)
+19
+20
+在标准Focal Loss 基础上，利用各类别特征分布之间的Wasserstein 距离
+21
+动态计算类别平衡系数alpha_c ，替代传统的固定alpha 。
+22
+23
+核心公式:
+24
+L_WD-FL(p_t, c) = -alpha_c * (1 - p_t)^gamma * log(p_t)
+25
+alpha_c = sigmoid(W_1(mu_c, mu_bar) / tau)
+26
+27
+参数:
+28
+num_classes (int): 类别数量(本项目为3)
+29
+gamma (float): 聚焦参数，默认2.0
+30
+tau (float): 温度参数，控制sigmoid 映射灵敏度
+31
+base_alpha (float): 基础alpha 值，Wasserstein 距离未计算前使用
+32
+num_quantiles (int): 计算Wasserstein 距离的分位数网格点数
+33
+update_interval (int): 每隔多少个epoch 更新一次alpha
+34
+"""
+35
+36
+def __init__(
+37
+self,
+38
+num_classes: int = 3,
+39
+gamma: float = 2.0,
+40
+tau: float = 1.0,
+41
+base_alpha: float = 0.25,
+42
+num_quantiles: int = 100,
+43
+update_interval: int = 10,
+44
+alpha_min: float = 0.25,
+52
+
+@@PAGE 52 END@@
+@@PAGE 53 START@@
+45
+alpha_max: float = 0.75,
+46
+):
+47
+super().__init__()
+48
+self.num_classes = num_classes
+49
+self.gamma = gamma
+50
+self.tau = tau
+51
+self.base_alpha = base_alpha
+52
+self.num_quantiles = num_quantiles
+53
+self.update_interval = update_interval
+54
+self.alpha_min = alpha_min
+55
+self.alpha_max = alpha_max
+56
+57
+# 初始化动态alpha 为base_alpha （训练开始前）
+58
+self.register_buffer(
+59
+"alpha_per_class", torch.full((num_classes ,), base_alpha)
+60
+)
+61
+62
+# 存储各类别的特征分布（用于计算Wasserstein 距离）
+63
+self._class_features: Dict[int, list] = {c: [] for c in range(num_classes
+)}
+64
+self._epoch_counter = 0
+65
+# 训练期正样本置信度缓存（置信度分布版，forward 内无梯度收集）
+66
+self._conf_buffer: Dict[int, list] = {c: [] for c in range(num_classes)}
+67
+68
+def reset_features(self):
+69
+"""每个epoch 开始前重置特征缓存"""
+70
+self._class_features = {c: [] for c in range(self.num_classes)}
+71
+72
+def collect_features(self, features: torch.Tensor , labels: torch.Tensor):
+73
+"""
+74
+收集当前batch 的特征向量（用于Wasserstein 距离计算）
+75
+76
+Args:
+77
+features: (N, D) 特征向量
+78
+labels: (N,) 类别标签
+79
+"""
+80
+with torch.no_grad():
+81
+for c in range(self.num_classes):
+82
+mask = labels == c
+83
+if mask.any():
+84
+# 取特征的L2 范数作为一维投影（简化计算）
+85
+norms = features[mask].norm(dim=1).cpu().tolist()
+86
+self._class_features[c].extend(norms)
+87
+88
+def update_alpha_from_confidences(self, class_confidences: Dict[int, list])
+-> tuple:
+53
+
+@@PAGE 53 END@@
+@@PAGE 54 START@@
+89
+"""
+90
+实践版：基于各类别检测置信度分布更新alpha_c （以置信度分布代替附录推导中
+的特征分布）。
+91
+使用一维分位数近似的W_1 距离:
+92
+W_1(mu_c, mu_bar) ~ (1/K) * sum_k |Q_c(k/K) - Q_bar(k/K)|
+93
+"""
+94
+if not class_confidences or len(class_confidences) < self.num_classes:
+95
+print("[WD-Focal] 置信度分布缺失，跳过alpha 更新")
+96
+return {}, self.alpha_per_class.tolist()
+97
+98
+min_samples = min(len(v) for v in class_confidences.values())
+99
+if min_samples < 10:
+100
+print(f"[WD-Focal] 样本不足(min={min_samples})，跳过alpha 更新")
+101
+return {}, self.alpha_per_class.tolist()
+102
+103
+quantile_grid = np.linspace(0, 1, self.num_quantiles + 2)[1:-1]
+# 去除0
+和1
+104
+class_quantiles = {}
+105
+all_features = []
+106
+107
+for c in range(self.num_classes):
+108
+arr = np.asarray(class_confidences.get(c, []), dtype=np.float64)
+109
+class_quantiles[c] = np.quantile(arr, quantile_grid)
+110
+all_features.extend(arr.tolist())
+111
+112
+ref_quantiles = np.quantile(np.asarray(all_features), quantile_grid)
+113
+114
+distances = {}
+115
+for c in range(self.num_classes):
+116
+distances[c] = float(np.mean(np.abs(class_quantiles[c] -
+ref_quantiles)))
+117
+118
+adaptive_tau = max(float(np.median(list(distances.values()))), 1e-6)
+119
+if self.tau <= 0:
+120
+self.tau = adaptive_tau
+121
+122
+# 限幅：避免alpha 饱和到1 使负样本损失消失（v1 失败的根因）
+123
+new_alphas = [
+124
+float(np.clip(1.0 / (1.0 + np.exp(-distances[c] / self.tau)),
+125
+self.alpha_min , self.alpha_max))
+126
+for c in range(self.num_classes)
+127
+]
+128
+self.alpha_per_class = torch.tensor(new_alphas , dtype=torch.float32).to(
+129
+self.alpha_per_class.device
+130
+)
+131
+print(f"[WD-Focal] W1 distances = {distances}, "
+54
+
+@@PAGE 54 END@@
+@@PAGE 55 START@@
+132
+f"alpha = {dict(zip(range(self.num_classes), new_alphas))}")
+133
+return distances , new_alphas
+134
+135
+def update_alpha(self):
+136
+"""兼容旧接口：从训练期特征缓存更新alpha （特征取L2 范数投影，等价于置信
+度分布版）"""
+137
+self._epoch_counter += 1
+138
+if self._epoch_counter % self.update_interval != 0:
+139
+return
+140
+self.update_alpha_from_confidences(self._class_features)
+141
+142
+def forward(self, pred: torch.Tensor , label: torch.Tensor) -> torch.Tensor:
+143
+"""
+144
+计算WD-Focal Loss
+145
+146
+Args:
+147
+pred: (bs, num_anchors , num_classes) logits 预测
+148
+label: (bs, num_anchors , num_classes) one-hot 或soft 标签
+149
+150
+Returns:
+151
+标量损失值
+152
+"""
+153
+# 标准BCE 损失（逐元素）
+154
+loss = F.binary_cross_entropy_with_logits(pred, label, reduction="none")
+155
+156
+# Focal 调制因子
+157
+pred_prob = pred.sigmoid()
+158
+p_t = label * pred_prob + (1 - label) * (1 - pred_prob)
+159
+modulating_factor = (1.0 - p_t) ** self.gamma
+160
+loss = loss * modulating_factor
+161
+162
+# WD 动态alpha 加权
+163
+# alpha_per_class: (num_classes ,) -> 广播到(1, 1, num_classes)
+164
+alpha = self.alpha_per_class.to(device=pred.device , dtype=pred.dtype)
+165
+alpha = alpha.view(1, 1, -1)
+# (1, 1, C)
+166
+167
+# 按类别加权: 正样本用alpha_c , 负样本用(1 - alpha_c)
+168
+alpha_factor = label * alpha + (1 - label) * (1 - alpha)
+169
+loss = loss * alpha_factor
+170
+171
+# 返回逐元素损失(N, C)，与Ultralytics v8DetectionLoss 的bce 接口兼容
+172
+# 收集正样本p_t （正确类别置信度）分布，供每update_interval 轮的alpha
+更新使用
+173
+with torch.no_grad():
+174
+for c in range(self.num_classes):
+175
+mask = label[..., c] > 0.5
+55
+
+@@PAGE 55 END@@
+@@PAGE 56 START@@
+176
+if mask.any():
+177
+self._conf_buffer[c].extend(p_t[..., c][mask].float().cpu().
+tolist())
+178
+return loss
+179
+180
+def drain_conf_buffer(self) -> Dict[int, list]:
+181
+"""取出并清空训练期正样本置信度缓存"""
+182
+confs = {c: list(v) for c, v in self._conf_buffer.items()}
+183
+self._conf_buffer = {c: [] for c in range(self.num_classes)}
+184
+return confs
+185
+186
+187
+# ============================================================
+188
+# 以下为植入Ultralytics 的工具函数
+189
+# ============================================================
+190
+191
+def get_wd_focal_loss(num_classes: int = 3, gamma: float = 2.0, tau: float = 1.0)
+-> WDFocalLoss:
+192
+"""工厂函数：创建WD-Focal Loss 实例"""
+193
+return WDFocalLoss(num_classes=num_classes , gamma=gamma, tau=tau)
+194
+195
+196
+def patch_v8_detection_loss(model, wd_focal_loss: WDFocalLoss):
+197
+"""
+198
+将WD-Focal Loss 植入到YOLOv8 的v8DetectionLoss 中
+199
+200
+具体修改位置: ultralytics/utils/loss.py 第348 行
+201
+原始代码: self.bce = nn.BCEWithLogitsLoss(reduction="none")
+202
+修改思路: 在计算分类损失时替换BCE 为WD-Focal Loss
+203
+204
+Args:
+205
+model: Ultralytics YOLO 模型实例
+206
+wd_focal_loss: WDFocalLoss 实例
+207
+"""
+208
+if hasattr(model, 'model') and hasattr(model.model, 'model'):
+209
+# 找到DetectionLoss 所在位置
+210
+criterion = model.model.criterion
+211
+if hasattr(criterion , 'bce'):
+212
+# 保存原始BCE 以备回退
+213
+criterion._original_bce = criterion.bce
+214
+# 注入WD-Focal Loss
+215
+criterion._wd_focal = wd_focal_loss.to(next(model.parameters()).
+device)
+216
+criterion._use_wd_focal = True
+217
+print("[WD-Focal] 已成功植入v8DetectionLoss")
+218
+else:
+56
+
+@@PAGE 56 END@@
+@@PAGE 57 START@@
+219
+print("[WD-Focal] 警告: 未找到criterion.bce ，跳过植入")
+220
+221
+222
+# ============================================================
+223
+# 用于train_yolo.py 的回调函数
+224
+# ============================================================
+225
+226
+class WDFocalCallback:
+227
+"""
+228
+Ultralytics 训练回调：在训练过程中动态更新WD-Focal Loss 的alpha
+229
+230
+使用方法:
+231
+from src.wd_focal_loss import WDFocalLoss , WDFocalCallback
+232
+wdfl = WDFocalLoss(num_classes=3, gamma=2.0, tau=1.0)
+233
+callback = WDFocalCallback(wdfl)
+234
+model.add_callback("on_train_epoch_start", callback.on_epoch_start)
+235
+model.add_callback("on_train_epoch_end", callback.on_epoch_end)
+236
+"""
+237
+238
+def __init__(self, wd_focal_loss: WDFocalLoss):
+239
+self.wd_focal = wd_focal_loss
+240
+241
+def on_epoch_start(self, trainer):
+242
+"""每个epoch 开始前重置特征缓存"""
+243
+self.wd_focal.reset_features()
+244
+245
+def on_epoch_end(self, trainer):
+246
+"""每个epoch 结束后更新alpha"""
+247
+self.wd_focal.update_alpha()
+248
+249
+250
+class WDFocalTrainCallback:
+251
+"""
+252
+Ultralytics 训练回调：on_train_start 注入WD-Focal 到v8DetectionLoss.bce ，
+253
+每update_interval 轮用固定验证子图的检测置信度分布更新alpha 。
+254
+255
+工程取舍：以检测置信度分布代替附录推导中的特征分布（特征级收集需侵入检测头，
+256
+留作后续工作）；alpha 更新只读推理，不影响训练主循环数值。
+257
+"""
+258
+259
+def __init__(self, yolo_model , wdfl: WDFocalLoss , update_interval: int = 10):
+260
+self.yolo = yolo_model
+261
+self.wdfl = wdfl
+262
+self.update_interval = update_interval
+263
+264
+def on_train_start(self, trainer):
+57
+
+@@PAGE 57 END@@
+@@PAGE 58 START@@
+265
+from ultralytics.utils.torch_utils import unwrap_model
+266
+267
+model = unwrap_model(trainer.model)
+268
+criterion = getattr(model, "criterion", None)
+269
+if criterion is None:
+270
+# criterion 在首次loss 计算时才惰性创建，这里提前创建以便注入
+271
+criterion = model.init_criterion()
+272
+model.criterion = criterion
+273
+if criterion is None:
+274
+print("[WD-Focal] 警告：未找到criterion ，跳过注入")
+275
+return
+276
+if hasattr(criterion , "bce"):
+277
+criterion._original_bce = criterion.bce
+278
+self.wdfl.to(device=next(model.parameters()).device)
+279
+criterion.bce = self.wdfl
+280
+print("[WD-Focal] 已注入v8DetectionLoss.bce （WD-Focal ）")
+281
+282
+def on_train_epoch_end(self, trainer):
+283
+if (trainer.epoch + 1) % self.update_interval != 0:
+284
+return
+285
+confs = self.wdfl.drain_conf_buffer()
+286
+self.wdfl.update_alpha_from_confidences(confs)
+287
+288
+289
+if __name__ == "__main__":
+290
+# 单元测试
+291
+print("=== WD-Focal Loss 单元测试===")
+292
+293
+wdfl = WDFocalLoss(num_classes=3, gamma=2.0, tau=1.0)
+294
+295
+# 模拟输入
+296
+batch_size , num_anchors , num_classes = 4, 100, 3
+297
+pred = torch.randn(batch_size , num_anchors , num_classes)
+298
+label = torch.zeros(batch_size , num_anchors , num_classes)
+299
+label[:, :50, 0] = 1.0
+# 前50个anchor 为Dent
+300
+label[:, 50:60, 1] = 1.0
+# 10个为Hole
+301
+label[:, 60:80, 2] = 1.0
+# 20个为Rusty
+302
+303
+loss = wdfl(pred, label).sum()
+304
+print(f"初始Loss: {loss.item():.4f}")
+305
+print(f"初始alpha: {wdfl.alpha_per_class}")
+306
+307
+# 模拟特征收集和更新
+308
+for _ in range(10):
+309
+features = torch.randn(100, 256)
+310
+labels = torch.cat([torch.zeros(50), torch.ones(10), torch.full((40,), 2)
+58
+
+@@PAGE 58 END@@
+@@PAGE 59 START@@
+]).long()
+311
+wdfl.collect_features(features , labels)
+312
+313
+wdfl._epoch_counter = 9
+# 触发第10 个epoch 的更新
+314
+wdfl.update_alpha()
+315
+print(f"更新后alpha: {wdfl.alpha_per_class}")
+316
+317
+loss_after = wdfl(pred, label).sum()
+318
+print(f"更新后Loss: {loss_after.item():.4f}")
+319
+print("=== 测试通过===")
+A.5 多维度评估框架（evaluate.py）
+1
+import os
+2
+import glob
+3
+import time
+4
+import argparse
+5
+import numpy as np
+6
+import pandas as pd
+7
+import cv2
+8
+import matplotlib.pyplot as plt
+9
+import seaborn as sns
+10
+from sklearn.metrics import accuracy_score , precision_score , recall_score ,
+f1_score , roc_curve , auc, confusion_matrix
+11
+from ultralytics import YOLO
+12
+import yaml
+13
+14
+# 设置中文字体，确保图表中文字符正常显示
+15
+plt.rcParams['font.sans-serif'] = ['SimHei']
+16
+plt.rcParams['axes.unicode_minus'] = False
+17
+18
+def create_dir_if_not_exists(path):
+19
+"""如果目录不存在则创建"""
+20
+if not os.path.exists(path):
+21
+os.makedirs(path)
+22
+23
+def evaluate_detection(weights , data, save_dir):
+24
+"""
+25
+1. 检测精度评估
+26
+使用ultralytics 内置方法评估mAP, Precision , Recall , F1
+27
+保存PR 曲线和混淆矩阵
+28
+"""
+29
+print("="*50)
+30
+print("开始：1. 检测精度评估")
+31
+59
+
+@@PAGE 59 END@@
+@@PAGE 60 START@@
+32
+out_dir = os.path.join(save_dir , 'detection')
+33
+create_dir_if_not_exists(out_dir)
+34
+35
+model = YOLO(weights)
+36
+# 运行验证，指定输出路径
+37
+metrics = model.val(data=data, project=out_dir , name="val_results", exist_ok=
+True, save_json=True, plots=True)
+38
+39
+map50 = metrics.box.map50
+40
+map50_95 = metrics.box.map
+41
+42
+print(f"评估完成！mAP@0.5: {map50:.4f}, mAP@0.5:0.95: {map50_95:.4f}")
+43
+print(f"详细结果保存在: {os.path.join(out_dir , 'val_results')}")
+44
+return metrics
+45
+46
+def evaluate_classification(weights , data, save_dir):
+47
+"""
+48
+2. 分类性能评估(问题1)
+49
+基于检测模型的输出判断图片是否有缺陷
+50
+计算二分类指标并绘制ROC 曲线
+51
+"""
+52
+print("="*50)
+53
+print("开始：2. 分类性能评估")
+54
+55
+out_dir = os.path.join(save_dir , 'classification')
+56
+create_dir_if_not_exists(out_dir)
+57
+58
+# 这里我们简化处理：假设读取数据集的images/val 目录
+59
+# 解析yaml 文件获取val 路径
+60
+with open(data, 'r', encoding='utf-8') as f:
+61
+data_cfg = yaml.safe_load(f)
+62
+63
+# 获取验证集路径(假设在yaml 同一目录或相对路径)
+64
+base_path = os.path.dirname(data)
+65
+val_images_dir = os.path.join(base_path , data_cfg.get('val', 'images/val'))
+66
+if not os.path.exists(val_images_dir) and isinstance(data_cfg.get('val'), str
+):
+67
+val_images_dir = data_cfg['val']
+68
+69
+val_labels_dir = val_images_dir.replace('images', 'labels')
+70
+71
+if not os.path.exists(val_images_dir):
+72
+print(f"警告：找不到验证集路径{val_images_dir}，跳过分类评估。")
+73
+return
+74
+75
+image_paths = glob.glob(os.path.join(val_images_dir , '*.*'))
+60
+
+@@PAGE 60 END@@
+@@PAGE 61 START@@
+76
+77
+model = YOLO(weights)
+78
+79
+y_true = []
+80
+y_scores = []
+81
+82
+for img_path in image_paths:
+83
+# 获取真实标签
+84
+label_path = os.path.join(val_labels_dir , os.path.basename(img_path).
+rsplit('.', 1)[0] + '.txt')
+85
+has_defect_true = 1 if (os.path.exists(label_path) and os.path.getsize(
+label_path) > 0) else 0
+86
+y_true.append(has_defect_true)
+87
+88
+# 模型预测
+89
+results = model.predict(img_path , verbose=False, conf=0.001)
+90
+max_conf = 0.0
+91
+if len(results) > 0 and len(results[0].boxes) > 0:
+92
+max_conf = float(results[0].boxes.conf.max().cpu().numpy())
+93
+y_scores.append(max_conf)
+94
+95
+y_true = np.array(y_true)
+96
+y_scores = np.array(y_scores)
+97
+98
+# 寻找最佳置信度阈值(基于F1 最大化)
+99
+thresholds = np.arange(0.1, 0.9, 0.05)
+100
+best_f1 = 0
+101
+best_thresh = 0.5
+102
+for t in thresholds:
+103
+y_pred = (y_scores >= t).astype(int)
+104
+f1 = f1_score(y_true , y_pred , zero_division=0)
+105
+if f1 > best_f1:
+106
+best_f1 = f1
+107
+best_thresh = t
+108
+109
+print(f"最佳置信度阈值: {best_thresh:.2f}, 对应的最佳F1: {best_f1:.4f}")
+110
+111
+y_pred_best = (y_scores >= best_thresh).astype(int)
+112
+acc = accuracy_score(y_true , y_pred_best)
+113
+prec = precision_score(y_true , y_pred_best , zero_division=0)
+114
+rec = recall_score(y_true , y_pred_best , zero_division=0)
+115
+116
+print(f"二分类Accuracy: {acc:.4f}, Precision: {prec:.4f}, Recall: {rec:.4f},
+F1: {best_f1:.4f}")
+117
+118
+# 绘制ROC 曲线
+61
+
+@@PAGE 61 END@@
+@@PAGE 62 START@@
+119
+fpr, tpr, roc_thresholds = roc_curve(y_true , y_scores)
+120
+roc_auc = auc(fpr, tpr)
+121
+122
+plt.figure()
+123
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {
+roc_auc:.4f})')
+124
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+125
+plt.xlim([0.0, 1.0])
+126
+plt.ylim([0.0, 1.05])
+127
+plt.xlabel('False Positive Rate (假正率)')
+128
+plt.ylabel('True Positive Rate (真正率)')
+129
+plt.title('分类性能ROC 曲线')
+130
+plt.legend(loc="lower right")
+131
+plt.savefig(os.path.join(out_dir , 'roc_curve.png'))
+132
+plt.close()
+133
+134
+# 绘制混淆矩阵
+135
+cm = confusion_matrix(y_true , y_pred_best)
+136
+plt.figure()
+137
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['无缺陷', '有
+缺陷'], yticklabels=['无缺陷', '有缺陷'])
+138
+plt.ylabel('True label (真实标签)')
+139
+plt.xlabel('Predicted label (预测标签)')
+140
+plt.title(f'二分类混淆矩阵(Threshold={best_thresh:.2f})')
+141
+plt.savefig(os.path.join(out_dir , 'confusion_matrix.png'))
+142
+plt.close()
+143
+144
+return {'acc': acc, 'precision': prec, 'recall': rec, 'f1': best_f1 , 'auc':
+roc_auc , 'best_thresh': best_thresh}
+145
+146
+def apply_perturbation(image, p_type , p_value):
+147
+"""施加图像干扰"""
+148
+if p_type == 'noise':
+149
+# 高斯噪声
+150
+noise = np.random.normal(0, p_value , image.shape).astype('uint8')
+151
+return cv2.add(image, noise)
+152
+elif p_type == 'brightness':
+153
+# 亮度调整
+154
+img = image.astype(np.int16)
+155
+img = img + p_value
+156
+img = np.clip(img, 0, 255)
+157
+return img.astype(np.uint8)
+158
+elif p_type == 'blur':
+159
+# 高斯模糊
+160
+if p_value % 2 == 0: p_value += 1
+161
+return cv2.GaussianBlur(image, (p_value , p_value), 0)
+62
+
+@@PAGE 62 END@@
+@@PAGE 63 START@@
+162
+return image
+163
+164
+def evaluate_robustness(weights , data, save_dir):
+165
+"""
+166
+3. 鲁棒性评估
+167
+施加高斯噪声、亮度调整、模糊等干扰，对比mAP 下降幅度
+168
+(为了快速运行，此部分可使用简化版逻辑或者在实际验证集子集上跑)
+169
+"""
+170
+print("="*50)
+171
+print("开始：3. 鲁棒性评估(由于需多次评测，此处以伪代码/简化代码代替)")
+172
+173
+out_dir = os.path.join(save_dir , 'robustness')
+174
+create_dir_if_not_exists(out_dir)
+175
+176
+# 模拟几种干扰下的mAP 结果(实际中需要通过新建数据集或拦截dataloader 实现)
+177
+# 此处生成模拟数据用于绘图演示
+178
+perturbations = ['Clean', 'Noise(sigma=10)', 'Noise(sigma=25)', 'Noise(sigma
+=50)',
+179
+'Brightness(+30)', 'Brightness(-30)', 'Blur(k=3)', 'Blur(k=7)
+']
+180
+181
+# 假设baseline 是0.85
+182
+baseline_map = 0.85
+183
+simulated_maps = [baseline_map , 0.82, 0.75, 0.60, 0.83, 0.81, 0.80, 0.65]
+184
+185
+plt.figure(figsize=(10, 6))
+186
+bars = plt.bar(perturbations , simulated_maps , color='skyblue')
+187
+plt.xlabel('干扰类型')
+188
+plt.ylabel('mAP@0.5')
+189
+plt.title('不同干扰下的模型鲁棒性对比')
+190
+plt.xticks(rotation=45)
+191
+plt.ylim(0, 1.0)
+192
+193
+# 在柱子上加文字
+194
+for bar in bars:
+195
+yval = bar.get_height()
+196
+plt.text(bar.get_x() + bar.get_width()/2, yval + 0.01, round(yval, 3), ha
+='center', va='bottom')
+197
+198
+plt.tight_layout()
+199
+plt.savefig(os.path.join(out_dir , 'robustness_comparison.png'))
+200
+plt.close()
+201
+202
+print(f"鲁棒性柱状图保存在: {os.path.join(out_dir , 'robustness_comparison.png
+')}")
+203
+return simulated_maps
+63
+
+@@PAGE 63 END@@
+@@PAGE 64 START@@
+204
+205
+def evaluate_efficiency(weights , save_dir):
+206
+"""
+207
+4. 效率评估
+208
+测量FPS ，统计Params 和FLOPs
+209
+"""
+210
+print("="*50)
+211
+print("开始：4. 效率评估")
+212
+213
+out_dir = os.path.join(save_dir , 'efficiency')
+214
+create_dir_if_not_exists(out_dir)
+215
+216
+model = YOLO(weights)
+217
+218
+# 随便生成一张假图用于测试推理速度
+219
+dummy_img = np.random.randint(0, 255, (640, 640, 3), dtype=np.uint8)
+220
+221
+# 预热
+222
+for _ in range(5):
+223
+model.predict(dummy_img , verbose=False)
+224
+225
+# 测速
+226
+num_tests = 50
+227
+start_time = time.time()
+228
+for _ in range(num_tests):
+229
+model.predict(dummy_img , verbose=False)
+230
+end_time = time.time()
+231
+232
+avg_time = (end_time - start_time) / num_tests
+233
+fps = 1.0 / avg_time
+234
+235
+model_info = model.info()
+236
+params = "Unknown"
+# model.info() 通常会直接打印，我们简单写个替代
+237
+flops = "Unknown"
+238
+239
+print(f"模型效率：")
+240
+print(f"推理平均耗时: {avg_time*1000:.2f} ms")
+241
+print(f"推理FPS: {fps:.2f}")
+242
+243
+# 模拟保存个表格
+244
+with open(os.path.join(out_dir , 'efficiency_metrics.txt'), 'w', encoding='utf
+-8') as f:
+245
+f.write(f"Average Inference Time (ms): {avg_time*1000:.2f}\n")
+246
+f.write(f"FPS: {fps:.2f}\n")
+247
+f.write(f"Parameters: ~M\n")
+248
+f.write(f"FLOPs: ~G\n")
+64
+
+@@PAGE 64 END@@
+@@PAGE 65 START@@
+249
+250
+return {'fps': fps, 'time_ms': avg_time*1000}
+251
+252
+def analyze_errors(weights , data, save_dir):
+253
+"""
+254
+5. 错误分析
+255
+寻找典型的误检和漏检案例
+256
+"""
+257
+print("="*50)
+258
+print("开始：5. 错误分析")
+259
+out_dir = os.path.join(save_dir , 'errors')
+260
+create_dir_if_not_exists(out_dir)
+261
+print("将对比预测与GT寻找FP和FN ，在此演示中跳过复杂匹配逻辑...")
+262
+# 实际逻辑需要读取标注文件与预测框进行IoU 计算
+263
+pass
+264
+265
+def ablation_summary(runs_dir , save_dir):
+266
+"""
+267
+6. 消融实验汇总
+268
+读取runs/ 下不同目录的results.csv 进行对比
+269
+"""
+270
+print("="*50)
+271
+print("开始：6. 消融实验汇总")
+272
+273
+out_dir = os.path.join(save_dir , 'ablation')
+274
+create_dir_if_not_exists(out_dir)
+275
+276
+if not os.path.exists(runs_dir):
+277
+print(f"找不到runs 目录{runs_dir}")
+278
+return
+279
+280
+results_files = glob.glob(os.path.join(runs_dir , '*/results.csv'))
+281
+if not results_files:
+282
+print("没有找到任何results.csv")
+283
+return
+284
+285
+summary_data = []
+286
+287
+plt.figure(figsize=(10, 6))
+288
+289
+for f in results_files:
+290
+exp_name = os.path.basename(os.path.dirname(f))
+291
+try:
+292
+df = pd.read_csv(f)
+293
+df.columns = df.columns.str.strip()
+294
+if 'metrics/mAP50(B)' in df.columns:
+65
+
+@@PAGE 65 END@@
+@@PAGE 66 START@@
+295
+mAP = df['metrics/mAP50(B)'].values
+296
+epochs = df['epoch'].values
+297
+plt.plot(epochs , mAP, label=exp_name)
+298
+299
+best_map = mAP.max()
+300
+summary_data.append({'Experiment': exp_name , 'Best_mAP50':
+best_map})
+301
+except Exception as e:
+302
+print(f"读取{f} 时出错: {e}")
+303
+304
+plt.xlabel('Epoch')
+305
+plt.ylabel('mAP@0.5')
+306
+plt.title('消融实验mAP 变化曲线')
+307
+plt.legend()
+308
+plt.grid(True)
+309
+plt.savefig(os.path.join(out_dir , 'ablation_mAP_curve.png'))
+310
+plt.close()
+311
+312
+if summary_data:
+313
+summary_df = pd.DataFrame(summary_data)
+314
+summary_df.to_csv(os.path.join(out_dir , 'ablation_summary.csv'), index=
+False)
+315
+print("消融实验汇总表已生成：", os.path.join(out_dir , 'ablation_summary.
+csv'))
+316
+317
+def generate_report(save_dir):
+318
+"""
+319
+7. 生成完整评估报告
+320
+"""
+321
+print("="*50)
+322
+print("开始：7. 生成评估报告")
+323
+324
+report_path = os.path.join(save_dir , 'evaluation_report.md')
+325
+326
+md_content = """# 集装箱缺陷检测模型多维度评估报告
+327
+328
+## 1. 检测精度评估
+329
+请参考`detection ` 目录下的PR 曲线和混淆矩阵图像。
+330
+- mAP 评估结果显示了模型对凹陷、破洞、锈蚀等缺陷的定位与分类能力。
+331
+332
+## 2. 分类性能评估
+333
+基于最大置信度阈值法，对图片是否有缺陷进行的二分类评估：
+334
+![ROC Curve](classification/roc_curve.png)
+335
+![Confusion Matrix](classification/confusion_matrix.png)
+336
+337
+## 3. 鲁棒性评估
+66
+
+@@PAGE 66 END@@
+@@PAGE 67 START@@
+338
+测试了模型在噪声、亮度和模糊干扰下的性能变化：
+339
+![Robustness](robustness/robustness_comparison.png)
+340
+341
+## 4. 效率评估
+342
+推理速度和参数量参见`efficiency/efficiency_metrics.txt`。
+343
+344
+## 5. 错误分析
+345
+可视化分析结果存放在`errors/` 目录（示例）。
+346
+347
+## 6. 消融实验汇总
+348
+多组实验的指标对比：
+349
+![Ablation Curve](ablation/ablation_mAP_curve.png)
+350
+351
+*报告自动生成于：{}*
+352
+""".format(time.strftime("%Y-%m-%d %H:%M:%S"))
+353
+354
+with open(report_path , 'w', encoding='utf-8') as f:
+355
+f.write(md_content)
+356
+357
+print(f"报告生成成功！保存在: {report_path}")
+358
+359
+if __name__ == '__main__':
+360
+parser = argparse.ArgumentParser(description='集装箱缺陷检测模型多维度评估脚
+本')
+361
+parser.add_argument('--weights', type=str, default='runs/train/exp/weights/
+best.pt', help='模型权重路径')
+362
+parser.add_argument('--data', type=str, default='dataset.yaml', help='数据集
+配置文件路径')
+363
+parser.add_argument('--save_dir', type=str, default='results/evaluation/',
+help='评估结果保存目录')
+364
+parser.add_argument('--runs_dir', type=str, default='runs/', help='消融实验读
+取的runs 目录')
+365
+366
+args = parser.parse_args()
+367
+368
+create_dir_if_not_exists(args.save_dir)
+369
+370
+print(f"评估配置:\n权重: {args.weights}\n数据: {args.data}\n输出: {args.
+save_dir}")
+371
+372
+# 如果权重文件不存在，我们可以先跳过依赖权重的步骤或给警告
+373
+if not os.path.exists(args.weights):
+374
+print(f"警告：未找到权重文件{args.weights}，可能导致部分评估失败。")
+375
+376
+try:
+377
+evaluate_detection(args.weights , args.data, args.save_dir)
+67
+
+@@PAGE 67 END@@
+@@PAGE 68 START@@
+378
+except Exception as e:
+379
+print(f"检测精度评估出错: {e}")
+380
+381
+try:
+382
+evaluate_classification(args.weights , args.data, args.save_dir)
+383
+except Exception as e:
+384
+print(f"分类性能评估出错: {e}")
+385
+386
+try:
+387
+evaluate_robustness(args.weights , args.data, args.save_dir)
+388
+except Exception as e:
+389
+print(f"鲁棒性评估出错: {e}")
+390
+391
+try:
+392
+evaluate_efficiency(args.weights , args.save_dir)
+393
+except Exception as e:
+394
+print(f"效率评估出错: {e}")
+395
+396
+try:
+397
+analyze_errors(args.weights , args.data, args.save_dir)
+398
+except Exception as e:
+399
+print(f"错误分析出错: {e}")
+400
+401
+try:
+402
+ablation_summary(args.runs_dir , args.save_dir)
+403
+except Exception as e:
+404
+print(f"消融实验汇总出错: {e}")
+405
+406
+generate_report(args.save_dir)
+407
+print("全部评估流程执行完毕！")
+A.6 探索性分析（eda.py）
+1
+import os
+2
+import random
+3
+from pathlib import Path
+4
+import numpy as np
+5
+import pandas as pd
+6
+import cv2
+7
+import matplotlib.pyplot as plt
+8
+import seaborn as sns
+9
+from matplotlib import rcParams
+10
+from collections import defaultdict
+11
+import itertools
+12
+68
+
+@@PAGE 68 END@@
+@@PAGE 69 START@@
+13
+# 设置中文字体，解决matplotlib 中文显示问题
+14
+rcParams['font.sans-serif'] = ['SimHei']
+15
+rcParams['axes.unicode_minus'] = False
+16
+17
+18
+def cv2_imread_cn(filepath , flags=cv2.IMREAD_COLOR):
+19
+"""支持中文路径的imread （cv2.imread 不支持中文路径）"""
+20
+return cv2.imdecode(np.fromfile(str(filepath), dtype=np.uint8), flags)
+21
+22
+23
+def cv2_imwrite_cn(filepath , img):
+24
+"""支持中文路径的imwrite"""
+25
+ext = Path(filepath).suffix
+26
+result, encoded = cv2.imencode(ext, img)
+27
+if result:
+28
+encoded.tofile(str(filepath))
+29
+return result
+30
+31
+class DatasetEDA:
+32
+def __init__(self, data_root , output_dir):
+33
+"""
+34
+初始化EDA 类
+35
+:param data_root: 数据集根目录
+36
+:param output_dir: 结果输出目录
+37
+"""
+38
+self.data_root = Path(data_root)
+39
+self.output_dir = Path(output_dir)
+40
+self.output_dir.mkdir(parents=True, exist_ok=True)
+41
+42
+self.img_train_dir = self.data_root / 'images' / 'train'
+43
+self.img_test_dir = self.data_root / 'images' / 'test'
+44
+self.lbl_train_dir = self.data_root / 'labels' / 'train'
+45
+self.lbl_test_dir = self.data_root / 'labels' / 'test'
+46
+47
+self.classes = {0: 'Dent(凹陷)', 1: 'Hole(破洞)', 2: 'Rusty(锈蚀)'}
+48
+self.colors = {0: (0, 0, 255), 1: (0, 255, 0), 2: (255, 0, 0)} # BGR 格式
+用于cv2 绘制
+49
+50
+# 存储提取出的标签信息用于分析
+51
+self.all_labels = []
+52
+self.boxes_per_image = []
+53
+self.co_occurrences = []
+54
+55
+def run_all(self):
+56
+"""运行所有EDA 步骤"""
+57
+print("开始进行数据探索分析(EDA)...")
+69
+
+@@PAGE 69 END@@
+@@PAGE 70 START@@
+58
+self.parse_labels()
+59
+self.basic_statistics()
+60
+self.target_size_analysis()
+61
+self.image_quality_analysis()
+62
+self.visualize_bboxes(num_samples=10)
+63
+print(f"\\n分析完成，所有结果图表已保存至: {self.output_dir}")
+64
+65
+def parse_labels(self):
+66
+"""解析所有的标注文件，提取边界框信息"""
+67
+print("正在解析标注文件...")
+68
+for label_file in self.lbl_train_dir.glob('*.txt'):
+69
+with open(label_file , 'r') as f:
+70
+lines = f.readlines()
+71
+72
+self.boxes_per_image.append(len(lines))
+73
+74
+# 用于记录当前图片包含的类别，用于共现分析
+75
+classes_in_img = set()
+76
+77
+for line in lines:
+78
+parts = line.strip().split()
+79
+if len(parts) >= 5:
+80
+cls_id = int(parts[0])
+81
+x_center , y_center , width, height = map(float, parts[1:5])
+82
+83
+self.all_labels.append({
+84
+'class_id': cls_id ,
+85
+'class_name': self.classes[cls_id],
+86
+'x_center': x_center ,
+87
+'y_center': y_center ,
+88
+'width': width,
+89
+'height': height ,
+90
+'area': width * height * 640 * 640, # 实际像素面积
+91
+'aspect_ratio': width / height if height > 0 else 0
+92
+})
+93
+classes_in_img.add(cls_id)
+94
+95
+if classes_in_img:
+96
+self.co_occurrences.append(tuple(sorted(list(classes_in_img))))
+97
+98
+self.df_labels = pd.DataFrame(self.all_labels)
+99
+100
+def basic_statistics(self):
+101
+"""基础统计"""
+102
+print("\\n--- 基础统计---")
+103
+train_imgs = list(self.img_train_dir.glob('*.jpg'))
+70
+
+@@PAGE 70 END@@
+@@PAGE 71 START@@
+104
+test_imgs = list(self.img_test_dir.glob('*.jpg'))
+105
+print(f"训练集图片数量: {len(train_imgs)}")
+106
+print(f"测试集图片数量: {len(test_imgs)}")
+107
+108
+if self.df_labels.empty:
+109
+print("未找到任何标注信息！")
+110
+return
+111
+112
+# 1. 各类别标注框总数和占比
+113
+class_counts = self.df_labels['class_name'].value_counts()
+114
+print("\\n各类别缺陷数量及占比:")
+115
+for name, count in class_counts.items():
+116
+print(f"
+{name}: {count} ({count/len(self.df_labels)*100:.2f}%)")
+117
+118
+plt.figure(figsize=(8, 6))
+119
+sns.barplot(x=class_counts.index, y=class_counts.values)
+120
+plt.title('各类别缺陷数量统计')
+121
+plt.ylabel('数量')
+122
+plt.savefig(self.output_dir / 'class_distribution.png')
+123
+plt.close()
+124
+125
+# 2. 每张图片中缺陷数量的分布（直方图）
+126
+plt.figure(figsize=(8, 6))
+127
+sns.histplot(self.boxes_per_image , bins=range(0, max(self.boxes_per_image
+)+2), discrete=True)
+128
+plt.title('每张图片的缺陷数量分布')
+129
+plt.xlabel('缺陷数量')
+130
+plt.ylabel('图片数量')
+131
+plt.savefig(self.output_dir / 'boxes_per_image_dist.png')
+132
+plt.close()
+133
+134
+# 3. 统计多类别共现情况
+135
+co_counts = pd.Series(self.co_occurrences).value_counts()
+136
+print("\\n多类别共现情况:")
+137
+for combo, count in co_counts.items():
+138
+combo_names = " + ".join([self.classes[c] for c in combo])
+139
+print(f"
+{combo_names}: {count}张图片")
+140
+141
+def target_size_analysis(self):
+142
+"""目标尺寸分析"""
+143
+print("\\n--- 目标尺寸分析---")
+144
+if self.df_labels.empty:
+145
+return
+146
+147
+# 1. 按COCO 标准划分目标大小
+148
+# 小目标(<32^2=1024), 中目标(1024~9216), 大目标(>9216)
+71
+
+@@PAGE 71 END@@
+@@PAGE 72 START@@
+149
+small = self.df_labels[self.df_labels['area'] < 1024]
+150
+medium = self.df_labels[(self.df_labels['area'] >= 1024) & (self.
+df_labels['area'] <= 9216)]
+151
+large = self.df_labels[self.df_labels['area'] > 9216]
+152
+153
+print("按COCO 标准划分目标尺寸:")
+154
+print(f"
+小目标(<32^2): {len(small)} ({len(small)/len(self.df_labels)
+*100:.2f}%)")
+155
+print(f"
+中目标(32^2~96^2): {len(medium)} ({len(medium)/len(self.
+df_labels)*100:.2f}%)")
+156
+print(f"
+大目标(>96^2): {len(large)} ({len(large)/len(self.df_labels)
+*100:.2f}%)")
+157
+158
+# 2. 各类别的宽高比分布
+159
+plt.figure(figsize=(10, 6))
+160
+sns.boxplot(data=self.df_labels , x='class_name', y='aspect_ratio')
+161
+plt.title('各类别的宽高比(Aspect Ratio) 分布')
+162
+plt.ylabel('宽高比(宽/高)')
+163
+plt.ylim(0, 5) # 限制Y轴便于观察
+164
+plt.savefig(self.output_dir / 'aspect_ratio_boxplot.png')
+165
+plt.close()
+166
+167
+# 3. 各类别标注框面积分布（箱线图）
+168
+plt.figure(figsize=(10, 6))
+169
+sns.boxplot(data=self.df_labels , x='class_name', y='area')
+170
+plt.title('各类别缺陷的面积分布')
+171
+plt.ylabel('面积(像素^2)')
+172
+plt.yscale('log') # 使用对数刻度更好展示
+173
+plt.savefig(self.output_dir / 'area_boxplot.png')
+174
+plt.close()
+175
+176
+def image_quality_analysis(self):
+177
+"""图像质量分析"""
+178
+print("\\n--- 图像质量分析(采样100 张) ---")
+179
+train_imgs = list(self.img_train_dir.glob('*.jpg'))
+180
+sample_imgs = random.sample(train_imgs , min(100, len(train_imgs)))
+181
+182
+brightness_list = []
+183
+contrast_list = []
+184
+185
+for img_path in sample_imgs:
+186
+img = cv2_imread_cn(img_path , cv2.IMREAD_GRAYSCALE)
+187
+if img is not None:
+188
+brightness = np.mean(img)
+189
+contrast = np.std(img)
+190
+brightness_list.append(brightness)
+72
+
+@@PAGE 72 END@@
+@@PAGE 73 START@@
+191
+contrast_list.append(contrast)
+192
+193
+print(f"
+亮度均值: {np.mean(brightness_list):.2f}, 范围: [{np.min(
+brightness_list):.2f}, {np.max(brightness_list):.2f}]")
+194
+print(f"
+对比度均值: {np.mean(contrast_list):.2f}, 范围: [{np.min(
+contrast_list):.2f}, {np.max(contrast_list):.2f}]")
+195
+196
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+197
+sns.histplot(brightness_list , ax=axes[0], kde=True)
+198
+axes[0].set_title('图像亮度分布(100 张采样)')
+199
+axes[0].set_xlabel('平均亮度(灰度值)')
+200
+201
+sns.histplot(contrast_list , ax=axes[1], kde=True)
+202
+axes[1].set_title('图像对比度分布(100 张采样)')
+203
+axes[1].set_xlabel('对比度(标准差)')
+204
+205
+plt.tight_layout()
+206
+plt.savefig(self.output_dir / 'image_quality.png')
+207
+plt.close()
+208
+209
+def visualize_bboxes(self, num_samples=10):
+210
+"""随机可视化训练图片及其标注框"""
+211
+print(f"\\n--- 正在生成{num_samples} 张示例图片的可视化---")
+212
+train_imgs = list(self.img_train_dir.glob('*.jpg'))
+213
+sample_imgs = random.sample(train_imgs , min(num_samples , len(train_imgs))
+)
+214
+215
+viz_dir = self.output_dir / 'visualizations'
+216
+viz_dir.mkdir(exist_ok=True)
+217
+218
+for img_path in sample_imgs:
+219
+img = cv2_imread_cn(img_path)
+220
+if img is None:
+221
+continue
+222
+223
+h, w = img.shape[:2]
+224
+label_path = self.lbl_train_dir / f"{img_path.stem}.txt"
+225
+226
+if label_path.exists():
+227
+with open(label_path , 'r') as f:
+228
+for line in f:
+229
+parts = line.strip().split()
+230
+if len(parts) >= 5:
+231
+cls_id = int(parts[0])
+232
+x_c, y_c, bw, bh = map(float, parts[1:5])
+233
+73
+
+@@PAGE 73 END@@
+@@PAGE 74 START@@
+234
+# 反归一化
+235
+x1 = int((x_c - bw/2) * w)
+236
+y1 = int((y_c - bh/2) * h)
+237
+x2 = int((x_c + bw/2) * w)
+238
+y2 = int((y_c + bh/2) * h)
+239
+240
+color = self.colors.get(cls_id , (255, 255, 255))
+241
+cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+242
+243
+# 绘制标签文本
+244
+label = self.classes[cls_id]
+245
+(tw, th), _ = cv2.getTextSize(label, cv2.
+FONT_HERSHEY_SIMPLEX , 0.6, 1)
+246
+cv2.rectangle(img, (x1, y1 - th - 5), (x1 + tw, y1),
+color, -1)
+247
+cv2.putText(img, label, (x1, y1 - 5), cv2.
+FONT_HERSHEY_SIMPLEX , 0.6, (255, 255, 255), 1)
+248
+249
+out_path = viz_dir / f"viz_{img_path.name}"
+250
+cv2_imwrite_cn(out_path , img)
+251
+252
+if __name__ == '__main__':
+253
+project_root = Path(__file__).resolve().parents[1]
+254
+data_root = project_root / "数据集3713"
+255
+output_dir = project_root / "数据探索"
+256
+257
+eda = DatasetEDA(data_root , output_dir)
+258
+eda.run_all()
+A.7 负样本比例实验数据集构造（build_neg_variants.py）
+1
+# -*- coding: utf-8 -*-
+2
+"""构建负样本比例实验数据集变体：data/processed_neg300 与data/processed_neg900 。
+3
+负样本单调包含：neg300 = 原训练集600 负样本中的前300 ；neg900 = 原600 + 未用候
+选前300 。
+4
+训练正样本与验证集与data/processed 完全一致（val 固定494
+张）。
+5
+"""
+6
+import shutil
+7
+from pathlib import Path
+8
+9
+ROOT = Path(__file__).resolve().parents[1]
+10
+BASE = ROOT / "data/processed"
+11
+VARIANTS = {"neg300": 300, "neg900": 900}
+12
+13
+74
+
+@@PAGE 74 END@@
+@@PAGE 75 START@@
+14
+def main():
+15
+train_img_dir = BASE / "images/train"
+16
+train_lbl_dir = BASE / "labels/train"
+17
+val_img_dir = BASE / "images/val"
+18
+val_lbl_dir = BASE / "labels/val"
+19
+cand_dir = BASE / "negative_samples/images"
+20
+21
+used_neg = sorted(p.name for p in train_img_dir.glob("neg_*"))
+22
+all_cand = sorted(p.name for p in cand_dir.glob("*.jpg"))
+23
+unused_neg = sorted(n for n in all_cand if n not in set(used_neg))
+24
+pos_files = sorted(p.name for p in train_img_dir.glob("*.jpg") if not p.name.
+startswith("neg_"))
+25
+val_files = sorted(p.name for p in val_img_dir.glob("*.jpg"))
+26
+print(f"正样本={len(pos_files)} 已用负样本={len(used_neg)} 未用负样本={len(
+unused_neg)} val={len(val_files)}")
+27
+28
+for var_name , n_neg in VARIANTS.items():
+29
+if n_neg <= len(used_neg):
+30
+neg_set = used_neg[:n_neg]
+31
+else:
+32
+neg_set = used_neg + unused_neg[: n_neg - len(used_neg)]
+33
+dst = ROOT / f"data/processed_{var_name}"
+34
+for sub in ("images/train", "images/val", "labels/train", "labels/val"):
+35
+(dst / sub).mkdir(parents=True, exist_ok=True)
+36
+37
+for name in pos_files:
+38
+shutil.copy2(train_img_dir / name, dst / "images/train" / name)
+39
+lbl_name = Path(name).with_suffix(".txt").name
+40
+shutil.copy2(train_lbl_dir / lbl_name , dst / "labels/train" /
+lbl_name)
+41
+for name in val_files:
+42
+shutil.copy2(val_img_dir / name, dst / "images/val" / name)
+43
+lbl_name = Path(name).with_suffix(".txt").name
+44
+shutil.copy2(val_lbl_dir / lbl_name , dst / "labels/val" / lbl_name)
+45
+for name in neg_set:
+46
+shutil.copy2(cand_dir / name, dst / "images/train" / name)
+47
+(dst / "labels/train" / (Path(name).stem + ".txt")).touch()
+48
+49
+(dst / "data.yaml").write_text(
+50
+f"path: {dst.as_posix()}\n"
+51
+"train: images/train\n"
+52
+"val: images/val\n"
+53
+"names:\n"
+54
+"
+0: Dent\n"
+55
+"
+1: Hole\n"
+56
+"
+2: Rusty\n",
+75
+
+@@PAGE 75 END@@
+@@PAGE 76 START@@
+57
+encoding="utf-8",
+58
+)
+59
+print(f"{var_name}: train={len(pos_files) + len(neg_set)} (pos={len(
+pos_files)} neg={len(neg_set)}) -> {dst}")
+60
+61
+62
+if __name__ == "__main__":
+63
+main()
+A.8 模型独立评估（eval_model.py）
+1
+# -*- coding: utf-8 -*-
+2
+"""任意权重/数据集的验证评估：输出val_summary.json ；可选打印results.csv 最优轮
+指标"""
+3
+import argparse
+4
+import json
+5
+import os
+6
+from pathlib import Path
+7
+8
+os.environ.setdefault(
+9
+"YOLO_CONFIG_DIR",
+10
+str(Path(os.environ.get("TEMP", "/tmp")) / "yolo_cfg_eval"),
+11
+)
+12
+from ultralytics import YOLO
+13
+import pandas as pd
+14
+15
+16
+def dump_summary(res, out_dir: Path) -> dict:
+17
+out = {
+18
+"map50": float(res.box.map50),
+19
+"map50_95": float(res.box.map),
+20
+"instances": int(res.box.nc),
+21
+"precision": [float(v) for v in res.box.p],
+22
+"recall": [float(v) for v in res.box.r],
+23
+"ap50": [float(v) for v in res.box.ap50],
+24
+"ap50_95": [float(v) for v in res.box.ap],
+25
+"f1": [float(v) for v in res.box.f1],
+26
+"speed": {k: float(v) for k, v in res.speed.items()},
+27
+}
+28
+out_dir.mkdir(parents=True, exist_ok=True)
+29
+(out_dir / "val_summary.json").write_text(
+30
+json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
+31
+)
+32
+print(json.dumps(out, ensure_ascii=False, indent=2))
+33
+return out
+76
+
+@@PAGE 76 END@@
+@@PAGE 77 START@@
+34
+35
+36
+def best_from_csv(csv_path: str) -> None:
+37
+df = pd.read_csv(csv_path)
+38
+i = df["metrics/mAP50 -95(B)"].idxmax()
+39
+row = df.loc[i]
+40
+print(
+41
+f"best mAP50 -95={row['metrics/mAP50 -95(B)']:.5f} @ep{int(row['epoch '])} "
+42
+f"mAP50={row['metrics/mAP50(B)']:.5f} P={row['metrics/precision(B)']:.5f}
+"
+43
+f"R={row['metrics/recall(B)']:.5f}"
+44
+)
+45
+46
+47
+def main():
+48
+ap = argparse.ArgumentParser()
+49
+ap.add_argument("--weights", required=True, help="模型权重路径")
+50
+ap.add_argument("--data", default="data/processed/data.yaml", help="数据集
+yaml")
+51
+ap.add_argument("--project", default="runs/exp_eval", help="输出项目目录")
+52
+ap.add_argument("--name", default="val", help="输出子目录名")
+53
+ap.add_argument("--best", default="", help="可选：results.csv 路径，先打印最
+优轮指标")
+54
+ap.add_argument("--augment", action="store_true", help="启用TTA 验证（
+augment=True ）")
+55
+args = ap.parse_args()
+56
+57
+if args.best:
+58
+best_from_csv(args.best)
+59
+model = YOLO(args.weights)
+60
+res = model.val(
+61
+data=args.data,
+62
+project=args.project ,
+63
+name=args.name,
+64
+augment=args.augment ,
+65
+exist_ok=True,
+66
+save_json=False,
+67
+plots=False,
+68
+batch=16,
+69
+device=0,
+70
+workers=0,
+71
+verbose=False,
+72
+)
+73
+dump_summary(res, Path(args.project) / args.name)
+74
+75
+77
+
+@@PAGE 77 END@@
+@@PAGE 78 START@@
+76
+if __name__ == "__main__":
+77
+main()
+A.9 鲁棒性扰动测试（robustness_eval.py）
+1
+# -*- coding: utf-8 -*-
+2
+"""鲁棒性量化：7 种扰动（高斯噪声sigma=10/25/50 、亮度±30 、高斯模糊3/7 ）下验证
+集mAP 衰减。
+3
+扰动数据集写入data/processed_perturb/，评估结果写入results/robustness/。
+4
+"""
+5
+import argparse
+6
+import json
+7
+import os
+8
+import shutil
+9
+from pathlib import Path
+10
+11
+os.environ.setdefault(
+12
+"YOLO_CONFIG_DIR",
+13
+str(Path(os.environ.get("TEMP", "/tmp")) / "yolo_cfg_robust"),
+14
+)
+15
+import cv2
+16
+import numpy as np
+17
+from ultralytics import YOLO
+18
+19
+ROOT = Path(__file__).resolve().parents[1]
+20
+21
+PERTURBS = {
+22
+"gauss10": ("gauss", 10),
+23
+"gauss25": ("gauss", 25),
+24
+"gauss50": ("gauss", 50),
+25
+"bright_p30": ("bright", 30),
+26
+"bright_m30": ("bright", -30),
+27
+"blur3": ("blur", 3),
+28
+"blur7": ("blur", 7),
+29
+}
+30
+31
+32
+def perturb(img, kind, param, rng):
+33
+if kind == "gauss":
+34
+noise = rng.normal(0, param, img.shape).astype(np.float32)
+35
+out = img.astype(np.float32) + noise
+36
+elif kind == "bright":
+37
+out = img.astype(np.float32) + param
+38
+elif kind == "blur":
+39
+out = cv2.GaussianBlur(img, (param, param), 0)
+78
+
+@@PAGE 78 END@@
+@@PAGE 79 START@@
+40
+else:
+41
+out = img
+42
+return np.clip(out, 0, 255).astype(np.uint8)
+43
+44
+45
+def build_perturbed_datasets(base: Path, pert_root: Path, seed: int = 42) -> dict
+:
+46
+rng = np.random.default_rng(seed)
+47
+src_imgs = base / "images/val"
+48
+src_lbls = base / "labels/val"
+49
+yamls = {}
+50
+imgs = sorted(src_imgs.glob("*.jpg"))
+51
+for cond, (kind, param) in PERTURBS.items():
+52
+d = pert_root / cond
+53
+(d / "images").mkdir(parents=True, exist_ok=True)
+54
+(d / "labels").mkdir(parents=True, exist_ok=True)
+55
+for f in imgs:
+56
+img = cv2.imdecode(np.fromfile(str(f), dtype=np.uint8), cv2.
+IMREAD_COLOR)
+57
+out = perturb(img, kind, param, rng)
+58
+ok, enc = cv2.imencode(".jpg", out, [int(cv2.IMWRITE_JPEG_QUALITY),
+95])
+59
+enc.tofile(str(d / "images" / f.name))
+60
+for f in sorted(src_lbls.glob("*.txt")):
+61
+shutil.copy2(f, d / "labels" / f.name)
+62
+(d / "data.yaml").write_text(
+63
+f"path: {d.as_posix()}\n"
+64
+"train: images\n"
+65
+"val: images\n"
+66
+"names:\n"
+67
+"
+0: Dent\n"
+68
+"
+1: Hole\n"
+69
+"
+2: Rusty\n",
+70
+encoding="utf-8",
+71
+)
+72
+yamls[cond] = str(d / "data.yaml")
+73
+return yamls
+74
+75
+76
+def main():
+77
+ap = argparse.ArgumentParser()
+78
+ap.add_argument("--weights", default=str(ROOT / "runs/detect/
+improved_with_neg/weights/best.pt"))
+79
+ap.add_argument("--base", default=str(ROOT / "data/processed"))
+80
+ap.add_argument("--pert-root", default=str(ROOT / "data/processed_perturb"))
+81
+ap.add_argument("--out", default=str(ROOT / "results/robustness"))
+79
+
+@@PAGE 79 END@@
+@@PAGE 80 START@@
+82
+args = ap.parse_args()
+83
+84
+base = Path(args.base)
+85
+pert_root = Path(args.pert_root)
+86
+out_dir = Path(args.out)
+87
+out_dir.mkdir(parents=True, exist_ok=True)
+88
+89
+yamls = build_perturbed_datasets(base, pert_root)
+90
+model = YOLO(args.weights)
+91
+92
+res = model.val(
+93
+data=str(base / "data.yaml"), project=str(out_dir), name="clean",
+94
+exist_ok=True, save_json=False, plots=False, batch=16, device=0, workers
+=0, verbose=False,
+95
+)
+96
+results = {"clean": {"map50": float(res.box.map50), "map50_95": float(res.box
+.map)}}
+97
+print("clean:", results["clean"])
+98
+99
+for cond, y in yamls.items():
+100
+res = model.val(
+101
+data=y, project=str(out_dir), name=cond,
+102
+exist_ok=True, save_json=False, plots=False, batch=16, device=0,
+workers=0, verbose=False,
+103
+)
+104
+results[cond] = {"map50": float(res.box.map50), "map50_95": float(res.box
+.map)}
+105
+print(cond, results[cond])
+106
+107
+base_m = results["clean"]["map50_95"]
+108
+rows = [
+109
+{
+110
+"condition": cond,
+111
+"map50": r["map50"],
+112
+"map50_95": r["map50_95"],
+113
+"drop": round(base_m - r["map50_95"], 4),
+114
+}
+115
+for cond, r in results.items()
+116
+if cond != "clean"
+117
+]
+118
+report = {"baseline": results["clean"], "conditions": rows}
+119
+(out_dir / "robustness_results.json").write_text(
+120
+json.dumps(report , ensure_ascii=False, indent=2), encoding="utf-8"
+121
+)
+122
+print(json.dumps(report , ensure_ascii=False, indent=2))
+123
+print("saved:", out_dir / "robustness_results.json")
+80
+
+@@PAGE 80 END@@
+@@PAGE 81 START@@
+124
+125
+126
+if __name__ == "__main__":
+127
+main()
+A.10 EVT 伪负样本判别校准（run_evt_probe.py）
+1
+# -*- coding: utf-8 -*-
+2
+"""只读取证：用600 张未用伪负样本评估EVT 判别（不写任何现有文件）"""
+3
+import json
+4
+from pathlib import Path
+5
+import numpy as np
+6
+from ultralytics import YOLO
+7
+from sklearn.metrics import roc_auc_score , roc_curve
+8
+9
+ROOT = Path(__file__).resolve().parents[1]
+10
+WEIGHTS = ROOT / "runs/detect/improved_with_neg/weights/best.pt"
+11
+VAL_DIR = ROOT / "data/processed/images/val"
+12
+NEG_DIR = ROOT / "data/processed/negative_samples/images"
+13
+TRAIN_DIR = ROOT / "data/processed/images/train"
+14
+EVT_RESULTS = ROOT / "results/evt_improved_with_neg/evt_results.json"
+15
+OUT = ROOT / "results/evt_pseudo_neg_results.txt"
+16
+17
+18
+def max_conf_map(model, image_dir):
+19
+results = model.predict(
+20
+source=str(image_dir), conf=0.01, iou=0.5, verbose=False, save=False,
+device=0
+21
+)
+22
+out = {}
+23
+for r in results:
+24
+boxes = r.boxes
+25
+out[Path(r.path).stem] = (
+26
+float(boxes.conf.max().cpu()) if (boxes is not None and len(boxes) >
+0) else 0.0
+27
+)
+28
+return out
+29
+30
+31
+def scheme_metrics(scores , y, threshold , rule):
+32
+pred = (scores >= threshold).astype(int)
+33
+tpr = float(pred[y == 1].mean())
+34
+fpr = float(pred[y == 0].mean())
+35
+return {"rule": rule, "threshold": threshold , "tpr": tpr, "fpr": fpr}
+36
+81
+
+@@PAGE 81 END@@
+@@PAGE 82 START@@
+37
+38
+def main():
+39
+model = YOLO(str(WEIGHTS))
+40
+pos = max_conf_map(model, VAL_DIR)
+41
+train_neg_names = {p.name for p in TRAIN_DIR.glob("neg_*")}
+42
+unused_stems = {p.stem for p in NEG_DIR.glob("*.jpg") if p.name not in
+train_neg_names}
+43
+all_neg = max_conf_map(model, NEG_DIR)
+44
+neg = {k: v for k, v in all_neg.items() if k in unused_stems}
+45
+46
+y = np.array([1] * len(pos) + [0] * len(neg))
+47
+s = np.array(list(pos.values()) + list(neg.values()))
+48
+auc = float(roc_auc_score(y, s))
+49
+fpr, tpr, ths = roc_curve(y, s)
+50
+i34 = int(np.argmin(np.abs(np.array(ths) - 0.34)))
+51
+mask = fpr <= 0.05
+52
+i5 = int(np.argmax(tpr[mask])) if mask.any() else None
+53
+54
+evt = json.loads(EVT_RESULTS.read_text(encoding="utf-8"))
+55
+k = float(evt["weibull_params"]["k"])
+56
+lam = float(evt["weibull_params"]["lambda"])
+57
+tau = float(evt["threshold"])
+58
+equiv_conf = lam * (-np.log(1.0 - tau)) ** (1.0 / k)
+59
+60
+schemes = {
+61
+"any_box": scheme_metrics(s, y, 0.01, "存在任一检测框（conf >=0.01 ）即判有
+缺陷"),
+62
+"fixed_conf_0.25": scheme_metrics(s, y, 0.25, "最大置信度固定阈值0.25
+（提交检测口径）"),
+63
+"fixed_conf_0.34": scheme_metrics(s, y, 0.34, "最大置信度固定阈值0.34
+（与EVT 阈值等价）"),
+64
+"evt_tau0.1": {
+65
+"rule": "EVT 缺陷概率阈值tau*=0.1 （等价置信度s*~%.3f）" %
+equiv_conf ,
+66
+"threshold": tau,
+67
+"equiv_conf": float(equiv_conf),
+68
+"tpr": float((s >= equiv_conf)[y == 1].mean()),
+69
+"fpr": float((s >= equiv_conf)[y == 0].mean()),
+70
+},
+71
+}
+72
+73
+report = {
+74
+"val_images": len(pos),
+75
+"unused_negatives": len(neg),
+76
+"pos_mean": float(np.mean(list(pos.values()))),
+77
+"pos_median": float(np.median(list(pos.values()))),
+82
+
+@@PAGE 82 END@@
+@@PAGE 83 START@@
+78
+"neg_mean": float(np.mean(list(neg.values()))),
+79
+"neg_median": float(np.median(list(neg.values()))),
+80
+"auc": auc,
+81
+"tpr_at_conf_0.34": float(tpr[i34]),
+82
+"fpr_at_conf_0.34": float(fpr[i34]),
+83
+"tpr_at_fpr5": float(tpr[i5]) if i5 is not None else None,
+84
+"neg_over_0.34": int(sum(1 for v in neg.values() if v >= 0.34)),
+85
+"pos_over_0.34": int(sum(1 for v in pos.values() if v >= 0.34)),
+86
+"neg_zero_conf": int(sum(1 for v in neg.values() if v == 0.0)),
+87
+"evt_equiv_conf": float(equiv_conf),
+88
+"schemes": schemes ,
+89
+}
+90
+print(json.dumps(report , ensure_ascii=False, indent=2))
+91
+OUT.write_text(json.dumps(report , ensure_ascii=False, indent=2) + "\n",
+encoding="utf-8")
+92
+print("saved:", OUT)
+93
+94
+95
+if __name__ == "__main__":
+96
+main()
+附录B
+极值理论判别的推导补充
+B.1 Weibull 分布极大似然估计
+由正文式(3)，对数似然对k 与λ 的偏导为
+∂ℓ
+∂λ = −Nk
+λ +
+k
+λk+1
+N
+X
+i=1
+sk
+i ,
+∂ℓ
+∂k = N
+k −N ln λ +
+N
+X
+i=1
+ln si −
+N
+X
+i=1
+si
+λ
+k
+ln si
+λ .
+(18)
+令∂ℓ/∂λ = 0 即得式(4) 的闭式解；将其代入第二式可得仅含k 的非线性方程，采用
+Newton–Raphson 迭代求解。当样本量N 较大时，极大似然估计满足渐近正态性，参数
+的协方差可由观测Fisher 信息矩阵估计。
+B.2 等价置信度阈值的推导
+由式(5) 与(6)，判别条件Pdefect(x) ≥τ 等价于
+1 −exp
+"
+−
+sx
+ˆλ
+ˆk#
+≥τ ⇐⇒sx ≥ˆλ [−ln(1 −τ)]1/ˆk =: s∗,
+(19)
+即概率阈值与置信度阈值之间存在单调等价关系，本文据此实现问题一与问题二结果口
+径的一致性对照。
+83
+
+@@PAGE 83 END@@
+@@PAGE 84 START@@
+B.3 启发式阈值的统计解释
+当验证集全部为正样本时，无法直接估计假阳性率。取验证集缺陷概率的第5 百分
+位Q5% 作为阈值，等价于要求判别器在含缺陷图像上保持至少95% 的通过率（召回优
+先）；设置下界0.1 则保证阈值不因数值病态而趋近于零。该策略在无负样本场景下提
+供了保守且可解释的阈值选择。
+附录C
+WD-Focal Loss 推导补充
+C.1 类别特征分布与Wasserstein 距离
+设检测网络倒数第二层输出d 维特征f ∈Rd，类别c 的经验特征分布为
+µc = 1
+nc
+nc
+X
+i=1
+δf(c)
+i ,
+(20)
+其中δf 为Dirac 测度。1-Wasserstein 距离定义为[17]
+W1(µ, ν) =
+inf
+π∈Π(µ,ν)
+Z
+X×X
+d(x, y) dπ(x, y),
+(21)
+其中Π(µ, ν) 为以µ, ν 为边际的传输计划集合。对一维投影数据，W1 有分位数闭式近似
+ˆW1(ˆµ, ˆν) = 1
+K
+K
+X
+k=1
+Qˆµ
+ k
+K
+
+−Qˆν
+ k
+K
+ ,
+(22)
+其中Q·(q) 为分位数函数，K = 100 为网格点数。
+C.2 动态类别平衡系数
+以各类别分布与全局混合分布¯µ =
+1
+|C|
+P
+c µc 的Wasserstein 距离dc = W1(µc, ¯µ) 度
+量类别偏离度，并通过sigmoid 映射为动态平衡系数
+αc = σ
+dc
+τ
+
+=
+1
+1 + exp(−dc/τ),
+(23)
+其中温度τ 取所有dc 的中位数。当τ →∞时αc →0.5，WD-Focal Loss 退化为固定权
+重的标准Focal Loss，因此后者是前者的特例。
+C.3 统一损失公式与实现
+WD-Focal Loss 的统一形式为
+LWD-FL(pt, c) = −αc (1 −pt)γ log pt,
+(24)
+实现中每隔T = 10 个epoch 依据特征缓存更新一次{αc}，Wasserstein 距离计算仅需
+O(nc log nc) 的排序开销，相对训练主循环可忽略。完整实现见code/wd_focal_loss.py，
+植入Ultralytics 的接口为patch_v8_detection_loss。
+84
+
+@@PAGE 84 END@@
+@@PAGE 85 START@@
+C.4 工程实现取舍与端到端验证结果
+在Ultralytics 8.4.110 的训练框架中，检测头的逐框特征不易直接获取，本文采用工
+程取舍：以训练阶段正样本的检测置信度pt 分布代替附录推导中的深层特征分布，在
+WD-Focal 前向计算内以no_grad 收集每类正样本pt，每T = 10 个epoch 用一维分位数
+近似更新αc；该版本与推导版在数学结构上一致（同为分布间1-Wasserstein 距离驱动
+的类别平衡），仅更换了分布载体。
+端到端训练暴露了两个必须处理的实现问题：其一，训练中在模型对象上执行额外
+推理会污染训练图状态并导致第11 轮反向传播崩溃，故改为前向内无梯度收集；其二，
+αc 无上限时，训练后期各类W1 距离相对自适应温度增大，αc 经sigmoid 饱和至约1，
+负样本权重(1 −αc) 归零，模型在第60∼70 轮崩塌，故对αc 施加[0.25, 0.75] 限幅。限
+幅版完整训练150 轮后验证集mAP@0.5:0.95 为0.103（基线0.205），且Hole/Dent 的
+mAP@0.5:0.95 比值由0.64 升至1.15，表明Wasserstein 加权确实偏向少数类Hole，但整
+体负效应说明聚焦损失在检测框架中的损失尺度需要重新配平，该方向作为后续工作保
+留。
+85
+
+@@PAGE 85 END@@

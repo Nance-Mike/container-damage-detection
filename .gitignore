@@ -12,4 +12,11 @@ yolo系列论文/
 论文/*.log
 论文/*.out
 
+# Word 版论文生成中间产物（main.docx 作为交付物保留入库）
+论文/.word_build/
+论文/main_word.tex
+论文/main_word_raw.docx
+AI工具使用详情.aux
+AI工具使用详情.log
+
 .agents/skills/math-modeling-review/

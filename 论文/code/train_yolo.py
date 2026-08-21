@@ -188,7 +188,7 @@ def predict_and_export(weights_path: str, conf_thres: float = 0.25, iou_thres: f
     # 提取结果并保存为 test_result.csv
     out_data = []
     for result in results:
-        img_name = Path(result.path).name
+        img_name = Path(result.path).stem  # image_id 不含扩展名（如 1.jpg -> 1）
         boxes = result.boxes
         for box in boxes:
             # 获取类别和坐标 (归一化后的中心点 xywh)

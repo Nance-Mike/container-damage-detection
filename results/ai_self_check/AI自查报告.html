@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026数学建模国赛 AI 全自动自查报告 · 选题D</title>
+<style>
+  :root{
+    --ok:#1a7f37; --ok-bg:#e6f4ea;
+    --warn:#b54708; --warn-bg:#fff4e5;
+    --info:#1d5fb5; --info-bg:#e8f0fb;
+    --bad:#b42318; --bad-bg:#fee4e2;
+    --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --card:#ffffff; --page:#f3f4f6; --accent:#0f4c81; --accent2:#1e88e5;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:0; background:var(--page);
+    color:var(--ink); font-family:"Microsoft YaHei","PingFang SC","SimSun",sans-serif;
+    font-size:14px; line-height:1.7;
+  }
+  .page{max-width:1000px; margin:0 auto; padding:28px 20px 60px;}
+  .hero{
+    background:linear-gradient(135deg,#0f4c81 0%,#1e88e5 100%);
+    color:#fff; border-radius:16px; padding:30px 32px; margin-bottom:24px;
+    box-shadow:0 8px 24px rgba(15,76,129,.22);
+  }
+  .hero .tag{display:inline-block; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35);
+    padding:2px 12px; border-radius:999px; font-size:12px; letter-spacing:1px; margin-bottom:10px;}
+  .hero h1{margin:0 0 8px; font-size:26px; line-height:1.35;}
+  .hero p{margin:2px 0; font-size:13px; color:rgba(255,255,255,.9);}
+  .stats{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:24px;}
+  .stat{flex:1; min-width:140px; background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .stat .num{font-size:30px; font-weight:700; line-height:1.2;}
+  .stat .lbl{font-size:12px; color:var(--muted); margin-top:4px;}
+  .stat.ok .num{color:var(--ok);} .stat.warn .num{color:var(--warn);} .stat.info .num{color:var(--info);}
+  .stat.total .num{color:var(--accent);}
+  h2{font-size:20px; color:var(--accent); border-left:5px solid var(--accent2);
+    padding-left:12px; margin:34px 0 14px;}
+  h3{font-size:16px; color:#111827; margin:22px 0 10px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:18px 20px; margin:14px 0; box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .note{background:#eef6ff; border-left:4px solid var(--accent2); padding:10px 14px; border-radius:0 8px 8px 0;
+    font-size:13px; color:#334155; margin:12px 0;}
+  table{border-collapse:collapse; width:100%; margin:12px 0; background:#fff; font-size:13px;}
+  th{background:#0f4c81; color:#fff; font-weight:600; padding:9px 10px; text-align:left; border:1px solid #0f4c81;}
+  td{border:1px solid var(--line); padding:8px 10px; vertical-align:top;}
+  tr:nth-child(even) td{background:#f8fafc;}
+  .badge{display:inline-block; padding:1px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap;}
+  .badge.ok{background:var(--ok-bg); color:var(--ok);}
+  .badge.warn{background:var(--warn-bg); color:var(--warn);}
+  .badge.info{background:var(--info-bg); color:var(--info);}
+  .badge.bad{background:var(--bad-bg); color:var(--bad);}
+  .chip{display:inline-block; padding:1px 10px; border-radius:999px; font-size:12px; font-weight:600;}
+  .chip.high{background:var(--bad-bg); color:var(--bad);}
+  .chip.mid{background:var(--warn-bg); color:var(--warn);}
+  .chip.low{background:var(--ok-bg); color:var(--ok);}
+  blockquote{background:#f9fafb; border-left:4px solid #9ca3af; margin:12px 0; padding:8px 14px; color:#4b5563; font-size:13px;}
+  hr{border:none; border-top:1px solid var(--line); margin:24px 0;}
+  code{background:#eef2f6; padding:1px 6px; border-radius:4px; font-size:12px;}
+  @media print{
+    body{background:#fff; font-size:12px;}
+    .page{max-width:none; padding:0;}
+    .hero{border-radius:0; box-shadow:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .stat,.card{box-shadow:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    th,td,.badge,.chip{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    h2{page-break-after:avoid;} table,tr{page-break-inside:avoid;}
+    a{color:inherit; text-decoration:none;}
+  }
+  @page{size:A4; margin:14mm 12mm;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hero">
+    <span class="tag">2026 · 高教社杯全国大学生数学建模竞赛</span>
+    <h1>AI 全自动自查报告（标准版）</h1>
+    <p>论文：基于 YOLOv8 与极值理论的集装箱破损智能检测模型（选题D）</p>
+    <p>自查日期：2026-08-21 ｜ 输入：论文 PDF（85 页）+ 赛题 + 数据说明 + 自查表</p>
+  </div>
+  <div class="stats">
+    <div class="stat total"><div class="num">26</div><div class="lbl">核查条目</div></div>
+    <div class="stat ok"><div class="num">18</div><div class="lbl">合格</div></div>
+    <div class="stat warn"><div class="num">5</div><div class="lbl">存在问题</div></div>
+    <div class="stat info"><div class="num">3</div><div class="lbl">待核实</div></div>
+  </div>
+  
+<p><strong>论文题目</strong>：基于 YOLOv8 与极值理论的集装箱破损智能检测模型（选题D） <strong>自查日期</strong>：2026-08-21 <strong>输入文件</strong>：参赛论文（论文/main.pdf，85 页）、赛题（选题D.pdf）、集装箱数据描述（集装箱数据描述 - 初赛.pdf）、数据集说明（数据集说明.pdf）、AI 全自动自查表（标准版） <strong>自查范围</strong>：六大一级维度、26 个二级核查条目</p>
+<hr />
+<h2 id="输入校验与论文基本信息">〇、输入校验与论文基本信息</h2>
+<div class="card"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>项目</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>PDF 文本提取校验</td>
+<td>正常文本型 PDF：85 页、总字符 98,552、平均 1,159 字符/页（≥100，非扫描件）</td>
+</tr>
+<tr class="even">
+<td>竞赛类型识别</td>
+<td>CUMCM 全国大学生数学建模竞赛（选题D），按国赛标准核查</td>
+</tr>
+<tr class="odd">
+<td>论文类型识别</td>
+<td>C 机器学习型为主（目标检测/图像分类），辅以极值理论统计建模与工程评估；判定依据：结果以 mAP/PR/AUC/混淆矩阵为主呈现，训练-测试-预测范式</td>
+</tr>
+<tr class="even">
+<td>章节完整度</td>
+<td>13/13：题目、关键词、摘要、问题重述、问题分析、模型假设、符号说明、建模求解、结果分析、模型检验、优缺点、参考文献、附录 全部齐全</td>
+</tr>
+<tr class="odd">
+<td>页数结构</td>
+<td>摘要第 1 页；正文第 2–29 页（共 28 页）；参考文献第 29 页；附录第 30–85 页（附录A 代码、附录B/C 推导补充）</td>
+</tr>
+<tr class="even">
+<td>模型假设</td>
+<td>6 条（合规区间 4–6 条）</td>
+</tr>
+<tr class="odd">
+<td>图表</td>
+<td>图注 20 个（图2-1～8-1，含组合图；实际嵌入 16 幅）、表 15 张（表4-1～8-3），正文均有引用</td>
+</tr>
+<tr class="even">
+<td>参考文献</td>
+<td>18 篇，GB/T 7714 格式，按正文首次出现顺序编号</td>
+</tr>
+<tr class="odd">
+<td>运行环境（表7-1）</td>
+<td>Python 3.13.7、PyTorch 2.13.0+cu126、Ultralytics 8.4.110 —— 与本机实测完全一致</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="一自查结果汇总表26-项">一、自查结果汇总表（26 项）</h2>
+<h3 id="维度一2026-国赛-ai-新规合规">维度一：2026 国赛 AI 新规合规</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>核查条目</th>
+<th>核查结果</th>
+<th>问题位置</th>
+<th>问题简述</th>
+<th>整改建议</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1. 核心建模 AI 主导痕迹检测</td>
+<td><span class="badge info">待核实</span></td>
+<td>全文建模章节（第6/7节）</td>
+<td>论文的建模核心（EVT“检测—判别”两阶段、WD-Focal、负样本策略）具备明确动机、数学推导与实测验证，未发现“无场景适配的通用模板”痕迹；但文本层面无法最终判定是否“AI 主导”，需结合提交的 AI 使用报告与人工复核</td>
+<td>确保 AI 使用报告如实界定 AI 在模型设计、代码实现、实验编排中的使用边界；保留设计草稿/推导过程作为“人工主导核心建模”的佐证</td>
+</tr>
+<tr class="even">
+<td>2. 核心写作 AI 痕迹筛查</td>
+<td><span class="badge ok">合格</span>（低风险）</td>
+<td>全文</td>
+<td>模板化套话扫描结果极低：仅“值得注意的是”1 处、“首先/最后/不仅”各 1 处；正文以数据、公式与实验事实驱动，未发现大面积 AI 通用套话</td>
+<td>将“值得注意的是”等 1–2 处改为更直接的表述；1.1 节背景为赛题原文转述，建议进一步用自己的语言重述</td>
+</tr>
+<tr class="odd">
+<td>3. AI 声明真实性匹配</td>
+<td><span class="badge info">待核实</span>（存在合规风险）</td>
+<td>提交材料清单</td>
+<td>论文与项目目录中均未发现 AI 使用声明/报告文件；若组委会要求随论文提交 AI 使用报告，缺失即构成合规风险</td>
+<td>立即向组委会确认 2026 年 AI 使用报告提交要求；若要求提交，如实填写 AI 在代码、实验、文本各环节的使用范围，避免漏报/瞒报</td>
+</tr>
+<tr class="even">
+<td>4. AI 内容人工核验痕迹</td>
+<td><span class="badge info">待核实</span></td>
+<td>附录C、7.4.3</td>
+<td>论文存在明显的人工核验痕迹：附录C 如实记录 WD-Focal 两版实现问题（第11轮反向传播崩溃、αc 饱和崩塌）、负结果如实报告、数值与实验记录一致；但需以“实验记录+脚本+结果文件”作为外部佐证</td>
+<td>整理 results/实验记录.md、runs/ 各实验 results.csv、val_summary.json 作为人工核验附件，随 AI 使用报告一并留存</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="维度二ai-幻觉与数据真实性核查">维度二：AI 幻觉与数据真实性核查</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>核查条目</th>
+<th>核查结果</th>
+<th>问题位置</th>
+<th>问题简述</th>
+<th>整改建议</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1. 原始数据真实性</td>
+<td><span class="badge ok">合格</span></td>
+<td>表5-1/5-2、7-4</td>
+<td>全部数据源自赛题：3713=3300+413 张；标注框 8038/1066/9104；类别分布 3934/946/3158（48.9%/11.8%/39.3%）；test_result.csv 931 框（Dent 463/Hole 131/Rusty 337）—— 与数据文件逐项实测一致，无虚构、篡改或私自新增数据</td>
+<td>无需整改</td>
+</tr>
+<tr class="even">
+<td>2. 文献与结论真实性</td>
+<td><span class="badge ok">合格</span>（抽查）</td>
+<td>参考文献</td>
+<td>18 篇均为真实经典文献（ResNet、YOLO 系列、Faster R-CNN、COCO、EVT 经典、PAN、DIoU、GFL、MixUp、Copy-Paste、Focal、最优传输、VOC），GB/T 7714 格式、与正文标注一一对应，未发现虚构文献</td>
+<td>无需整改</td>
+</tr>
+<tr class="odd">
+<td>3. 图表数值匹配</td>
+<td><span class="badge warn">存在问题</span></td>
+<td>摘要、表7-3、8.2、8.8</td>
+<td>① 最终模型 mAP@0.5=0.405 取自训练 ep132（0.4048），mAP@0.5:0.95=0.205 来自 ep130（0.20481），两个“最优”来自不同轮次；② 表8-1 独立评估为 0.403/0.204，正文却称与“0.405/0.205 一致”，口径混用且“一致”表述不严谨；③ 8.5 节“亮度/模糊衰减不超过 0.014”，实测亮度−30 衰减 0.0142，略超上限</td>
+<td>① 统一最终模型指标口径：建议以独立评估 0.403/0.204 为唯一口径，或注明“各指标取训练最优轮次（非同一轮）”；② 同步修改摘要、表7-3、7.4.2、8.2、8.8、9.2 中的数字；③ “不超过0.014”改为“约0.014（最大0.0142）”</td>
+</tr>
+<tr class="even">
+<td>4. 逻辑因果真实性</td>
+<td><span class="badge ok">合格</span></td>
+<td>8.4、7.4.3、附录C</td>
+<td>因果链均有实验证据：骨干升级→+0.022；Copy-Paste 无分割掩膜→无可观测增益；负样本→k 2.963→3.064 而 mAP 降约 0.007；WD-Focal→Hole/Dent 比值 0.64→1.15 但整体 0.103（负结果如实报告）；无强行关联</td>
+<td>无需整改</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="维度三建模逻辑与题意适配度核查">维度三：建模逻辑与题意适配度核查</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>核查条目</th>
+<th>核查结果</th>
+<th>问题位置</th>
+<th>问题简述</th>
+<th>整改建议</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1. 题意理解准确性</td>
+<td><span class="badge ok">合格</span></td>
+<td>1.2、7.4.5</td>
+<td>问题一（判别残损有无）、问题二（定位+类别识别）、问题三（多维度评估）全覆盖；test_result.csv 按 image_id,class_id,x_center,y_center,width,height 六列归一化坐标输出，实测 931 行格式正确</td>
+<td>无需整改</td>
+</tr>
+<tr class="even">
+<td>2. 建模逻辑自洽</td>
+<td><span class="badge ok">合格</span></td>
+<td>第6/7节、附录B/C</td>
+<td>“检测—判别”两阶段逻辑自洽；EVT 对非 i.i.d. 块极大值的工程近似有明确说明（6.1）；附录给出 MLE、阈值等价、WD-Focal 推导；全文无前后矛盾</td>
+<td>无需整改</td>
+</tr>
+<tr class="odd">
+<td>3. 全子问题闭环</td>
+<td><span class="badge ok">合格</span></td>
+<td>6.6、7.4.5、第8节</td>
+<td>问题一：测试集判别 352 幅有缺陷/61 幅无缺陷；问题二：931 框写入 test_result.csv；问题三：六维评估表8-1/8-2/8-3 齐备；无漏题、空白、未建模</td>
+<td>无需整改</td>
+</tr>
+<tr class="even">
+<td>4. 模型选型适配</td>
+<td><span class="badge ok">合格</span></td>
+<td>2.2、6.1、7.3.3</td>
+<td>YOLOv8 单阶段检测匹配实时巡检；EVT 针对“无负样本二分类”这一赛题特殊困难设计；WD-Focal 有动机与实测，未盲目堆砌</td>
+<td>无需整改</td>
+</tr>
+<tr class="odd">
+<td>5. 约束条件纳入</td>
+<td><span class="badge warn">存在问题</span>（轻微）</td>
+<td>8.1</td>
+<td>赛题提示2“验证集每张图片的破损按严重程度从大到小最多取 4 个”未在论文中说明或讨论其对评估口径的影响</td>
+<td>在 8.1 评估指标定义或 5.3 数据预处理处补充一句说明（评估按给定标注进行，每图最多 4 个破损，超出部分按误检计），避免评委认为遗漏赛题提示</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="维度四模型求解及结果合理性核查">维度四：模型求解及结果合理性核查</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>核查条目</th>
+<th>核查结果</th>
+<th>问题位置</th>
+<th>问题简述</th>
+<th>整改建议</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1. 结果常识合理性</td>
+<td><span class="badge ok">合格</span></td>
+<td>表7-3/8-1/8-2/8-3</td>
+<td>mAP@0.5:0.95≈0.205 对“弱纹理锈蚀+小目标破洞+密集目标”数据集合理；8.87ms/幅≈113FPS 符合实时巡检常识；AUC≈0.972、均值 0.628 vs 0.077 的分离度符合 EVT 判别逻辑；无异常数值</td>
+<td>无需整改</td>
+</tr>
+<tr class="even">
+<td>2. 求解方法适配</td>
+<td><span class="badge ok">合格</span></td>
+<td>6.4、7.1、8.5</td>
+<td>Weibull MLE（SciPy weibull_min + Newton–Raphson）与有界置信度极值建模匹配；YOLOv8 标准训练/验证、六类扰动复测、TTA 验证方法均与问题匹配</td>
+<td>无需整改</td>
+</tr>
+<tr class="odd">
+<td>3. 参数取值合规</td>
+<td><span class="badge ok">合格</span></td>
+<td>表7-1/7-2、6.5、附录C</td>
+<td>seed=42、epochs 100/150、imgsz=640、batch=16、lr0=0.01、pos_weight=3934/3158≈1.246、τ*=0.1（第5百分位+下界）、αc∈[0.25,0.75] 均有依据与说明；环境版本（Python 3.13.7/PyTorch 2.13.0/Ultralytics 8.4.110）实测一致</td>
+<td>无需整改</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="维度五官方写作规范全自动核查">维度五：官方写作规范全自动核查</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>核查条目</th>
+<th>核查结果</th>
+<th>问题位置</th>
+<th>问题简述</th>
+<th>整改建议</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1. 摘要官方合规</td>
+<td><span class="badge warn">存在问题</span></td>
+<td>第1页</td>
+<td>摘要单独一页、不跨页、含量化结果/核心模型/创新点均达标；但去空白 1194 字符（含空白 1274），超出自查表 800–1000 字上限；关键词 6 个，超出 3–5 个要求</td>
+<td>若按自查表严格执行：压缩摘要至 ≤1000 字（保留三个问题的量化结果），关键词删 1 个（建议删“多维度评估”）；若组委会口径允许占满首页，需先确认当年官方字数要求再定</td>
+</tr>
+<tr class="even">
+<td>2. 全文结构完整性</td>
+<td><span class="badge ok">合格</span></td>
+<td>全文</td>
+<td>题目、关键词、摘要、问题重述、问题分析、模型假设、符号说明、建模求解、结果分析、模型检验、优缺点、参考文献、附录 13 项齐全</td>
+<td>无需整改</td>
+</tr>
+<tr class="odd">
+<td>3. 核心检验完整性</td>
+<td><span class="badge warn">存在问题</span>（一般）</td>
+<td>8.5/8.7/8.4</td>
+<td>稳健性分析（表8-2 六类扰动）达标、误差分析（8.7 错误分析）达标；但无明确命名的“灵敏度分析”章节（消融 8.4、负样本数量 7.4.3、阈值选择 6.5 可起部分作用）</td>
+<td>在 8.4 或 9.3 补一段参数灵敏度分析（如阈值 τ、αc 限幅、负样本数量的敏感性），或将消融实验明确表述为“方法灵敏度/贡献度分析”</td>
+</tr>
+<tr class="even">
+<td>4. 内容呼应性</td>
+<td><span class="badge warn">存在问题</span></td>
+<td>摘要 vs 表7-3 vs 表8-1</td>
+<td>摘要与表7-3 的“0.405/0.205”与表8-1 独立评估“0.403/0.204”存在口径混用，8.8“口径一致”结论被削弱；其余摘要数字（352/61、k=3.064、λ=0.701、AUC=0.972、85.2%/5.3%、0.190→0.212、P2 +0.021、TTA +0.011→0.215）与正文一一对应</td>
+<td>统一指标口径后全篇同步（摘要、7.4.2、表7-3、8.2、8.8、9.2），并在图表注中标注评估口径</td>
+</tr>
+<tr class="odd">
+<td>5. 模型假设合规</td>
+<td><span class="badge ok">合格</span></td>
+<td>三、模型假设</td>
+<td>6 条假设贴合题意（标注可靠、同分布、置信度单调、最大置信度可分、类别独立、GPU 充足），未过度简化，且均在后文被实际使用</td>
+<td>无需整改</td>
+</tr>
+<tr class="even">
+<td>6. 写作同质化</td>
+<td><span class="badge ok">合格</span>（低风险）</td>
+<td>全文</td>
+<td>全文本题专属（数据特征、消融归因、负结果、代码附录），无大面积万能模板段落；个别句式（“值得注意的是”）带轻微模板味</td>
+<td>微调 1–2 处句式，去除模板味</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="维度六官方排版-页数全自动核查">维度六：官方排版 &amp; 页数全自动核查</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>核查条目</th>
+<th>核查结果</th>
+<th>问题位置</th>
+<th>问题简述</th>
+<th>整改建议</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1. 正文页数合规</td>
+<td><span class="badge ok">合格</span></td>
+<td>第2–29页</td>
+<td>正文 28 页（不含摘要/附录），处于官方合规区间 20–32 页、最优区间 25–30 页内；若摘要计入正文为 29 页，仍合规</td>
+<td>无需整改</td>
+</tr>
+<tr class="even">
+<td>2. 全局格式统一性</td>
+<td><span class="badge ok">合格</span></td>
+<td>全文</td>
+<td>正文小四宋体/Times New Roman、标题黑体、1.5 倍行距、图表按章连续编号（图2-1～8-1、表4-1～8-3，无跳号重号）、页脚页码居中、页边距统一 2.5cm</td>
+<td>可选：官方模板页边距为上下 2.54cm/左右 3.18cm，若按官方模板严格比对可微调（轻微，不影响合规）</td>
+</tr>
+<tr class="odd">
+<td>3. 图表公式排版</td>
+<td><span class="badge ok">合格</span></td>
+<td>全文</td>
+<td>三线表（booktabs）、图片高清嵌入、公式居中编号右对齐（(1)–(24)）、全部图表正文有引用</td>
+<td>已知非阻塞项：verify_pdf 的“appendix has code”诊断固定扫描第 27–30 页而附录自 30 页起，恒为 False，建议修正脚本扫描区间或标注为已知项</td>
+</tr>
+<tr class="even">
+<td>4. 匿名合规</td>
+<td><span class="badge ok">合格</span></td>
+<td>全文（含附录）</td>
+<td>未发现学校、姓名、队伍、学号、个人邮箱、绝对用户路径等隐私信息（附录代码亦无）；页眉无文字属排版设计，匿名性良好</td>
+<td>无需整改</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="二整体合规判定">二、整体合规判定</h2>
+<p><strong>结论：论文整体处于国赛合规区间，核心风险不在内容质量而在“提交口径与材料完备性”。</strong></p>
+<p>26 个核查条目中：合格 18 项、存在问题 5 项、待核实 3 项。其中无实质性致命内容缺陷；论文的模型-数据-结果链条（表5-1/5-2/6-1/6-2/7-3/7-4/8-1/8-2/8-3、test_result.csv 931 框）与项目实测结果高度一致，负结果（WD-Focal 0.103、Rusty 加权 −0.034、Copy-Paste 无增益）如实呈现，这是明显加分项。需要优先处理的是三件事：① AI 使用报告的确认与补齐（潜在合规红线）；② 最终模型 mAP 指标口径统一（0.405/0.205 vs 0.403/0.204）；③ 摘要字数/关键词数量与自查表 800–1000 字、3–5 个要求的对齐。</p>
+<hr />
+<h2 id="三问题分级汇总">三、问题分级汇总</h2>
+<h3 id="致命扣分风险p0需立即确认">致命扣分风险（P0，需立即确认）</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>风险项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>AI 使用报告缺失（待核实）</td>
+<td>论文与项目目录中未发现 AI 使用声明/报告。若 2026 年组委会要求随论文提交，缺失即触碰 AI 合规红线；若以独立文件提交，需确保内容与论文实际 AI 使用情况（代码、实验、文本）完全一致</td>
+</tr>
+<tr class="even">
+<td>摘要字数超上限（已整改）</td>
+<td>原 1194 字 &gt; 1000 字；已于 2026-08-21 按官方 800–1000 字要求压缩至约 920 字，摘要仍单独一页</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="一般缺陷p1">一般缺陷（P1）</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>缺陷项</th>
+<th>位置</th>
+<th>影响</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>最终模型 mAP 指标口径混用</td>
+<td>摘要、表7-3、8.2、8.8</td>
+<td>0.405（ep132）与 0.205（ep130）来自不同最优轮次，与独立评估 0.403/0.204 表述“一致”不严谨，直接影响图表数值匹配与内容呼应两项核查</td>
+</tr>
+<tr class="even">
+<td>核心检验缺少明确“灵敏度分析”</td>
+<td>8.4/8.5</td>
+<td>消融与鲁棒性部分覆盖，但无明确命名的灵敏度分析章节</td>
+</tr>
+<tr class="odd">
+<td>关键词 6 个超限</td>
+<td>第1页</td>
+<td>超出官方 3–5 个关键词要求</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="轻微瑕疵p2">轻微瑕疵（P2）</h3>
+<div class="card"><table>
+<thead>
+<tr class="header">
+<th>瑕疵项</th>
+<th>位置</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>赛题提示2 未说明</td>
+<td>8.1</td>
+<td>“验证集每图最多取 4 个破损”未讨论对评估口径的影响</td>
+</tr>
+<tr class="even">
+<td>“衰减不超过0.014”表述</td>
+<td>8.5</td>
+<td>实测亮度−30 衰减 0.0142，建议“约0.014/≤0.015”</td>
+</tr>
+<tr class="odd">
+<td>页边距与官方模板差异</td>
+<td>全局</td>
+<td>2.5cm vs 官方 2.54/3.18cm（可选调整）</td>
+</tr>
+<tr class="even">
+<td>verify_pdf 附录扫描诊断恒 False</td>
+<td>脚本</td>
+<td>扫描页区间 27–30 与附录起始页 30 不匹配（非故障，建议修正）</td>
+</tr>
+<tr class="odd">
+<td>个别模板句</td>
+<td>7.3.3、1.1</td>
+<td>“值得注意的是”等 1–2 处句式可润色</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="四优先级整改清单按扣分权重排序">四、优先级整改清单（按扣分权重排序）</h2>
+<ol type="1">
+<li><strong>P0-1 补齐 AI 使用报告</strong>：向组委会确认提交要求；如实填写 AI 在代码实现、实验编排、文本润色中的使用范围；附 results/实验记录.md、runs/ 实验结果、val_summary.json 作为核验佐证。</li>
+<li><strong>P0-2 统一最终模型指标口径</strong>：将摘要/表7-3/8.2/8.8/9.2 中的“0.405/0.205”统一为独立评估口径 0.403/0.204（或注明“各指标取训练最优轮次”），消除“一致”矛盾；表7-3 的 Precision 0.550/Recall 0.412 亦来自 ep132，需一并注明口径。</li>
+<li><strong>P1-1 摘要字数对齐</strong>：若按自查表严格执行，将摘要压缩至 ≤1000 字（保留问题一 AUC 0.972/85.2%/5.3%、问题二 0.403/0.204 与逐类、问题三六维结论），关键词 6→5（删“多维度评估”）；若组委会允许占满首页，保留现稿并注明字数口径。</li>
+<li><strong>P1-2 补充灵敏度分析</strong>：在 8.4 或 9.3 增加一段“参数灵敏度”（阈值 τ 在 0.05–0.20 的召回/F1 变化、负样本数量 300/600/900 的 k 值变化已具备素材），或将消融明确表述为方法灵敏度分析。</li>
+<li><strong>P2-1 补赛题提示说明</strong>：在 8.1 说明验证集每图最多 4 个破损标注及其对评估的影响。</li>
+<li><strong>P2-2 表述微调</strong>：8.5“不超过0.014”→“约0.014（最大0.0142）”；润色“值得注意的是”等句式。</li>
+<li><strong>P2-3 工程收尾（可选）</strong>：页边距对齐官方模板；修正 verify_pdf 附录扫描页区间；test_result.csv 的 .jpg 后缀问题维持“待组委会确认”标注。</li>
+</ol>
+<hr />
+<h2 id="五官方规范适配度与潜在风险预警">五、官方规范适配度与潜在风险预警</h2>
+<h3 id="适配度良好项">适配度良好项</h3>
+<ul>
+<li>正文 28 页处于最优区间（25–30），附录代码完整（A.1–A.10 十个脚本 + 推导补充 B/C）；</li>
+<li>结构 13/13 完整，图表按章编号、三线表、公式编号规范；</li>
+<li>参考文献 18 篇、GB/T 7714、按正文首次出现顺序编号；</li>
+<li>环境版本、数据统计、模型指标、判别统计、鲁棒性表全部与项目实测一致（详见附录证据表）；</li>
+<li>匿名合规良好，无个人信息泄露。</li>
+</ul>
+<h3 id="潜在风险预警">潜在风险预警</h3>
+<div class="card"><table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>风险</th>
+<th>等级</th>
+<th>预警说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>AI 使用报告缺失</td>
+<td><span class="chip high">高</span></td>
+<td>2026 年 AI 合规是硬性红线；论文实际由 AI 协作完成（代码/实验/排版），若报告漏报、瞒报或用途不符，后果严重。务必如实、完整填报</td>
+</tr>
+<tr class="even">
+<td>摘要字数超限（已整改）</td>
+<td><span class="chip low">低</span></td>
+<td>已压缩至约 920 字（去空白 923，符合 800–1000）；仍单独一页，未跨页</td>
+</tr>
+<tr class="odd">
+<td>指标口径混用</td>
+<td><span class="chip mid">中</span></td>
+<td>0.405/0.205 与 0.403/0.204 并存，评委若抽验 results.csv 会发现口径不一致；建议全篇统一</td>
+</tr>
+<tr class="even">
+<td>test_result.csv 后缀</td>
+<td><span class="chip low">低</span></td>
+<td>image_id 带 .jpg 后缀与赛题示例格式一致，维持“待组委会确认”标注</td>
+</tr>
+<tr class="odd">
+<td>附录篇幅 56 页</td>
+<td><span class="chip low">低</span></td>
+<td>若组委会对附录有页数上限需确认；正文不受影响</td>
+</tr>
+<tr class="even">
+<td>灵敏度分析缺位</td>
+<td><span class="chip low">低</span></td>
+<td>消融+鲁棒性可部分弥补，建议补一段参数灵敏度</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="附录关键数值核对证据表论文-vs-项目实测">附录：关键数值核对证据表（论文 vs 项目实测）</h2>
+<div class="card"><table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>数据项</th>
+<th>论文数值</th>
+<th>项目实测</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>数据总量</td>
+<td>3713=3300+413</td>
+<td>数据文件一致</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>训练/测试标注框</td>
+<td>8038 / 1066</td>
+<td>6724(train)+1314(val)=8038；test 1066</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>类别分布（训练集）</td>
+<td>Dent 3934(48.9%)/Hole 946(11.8%)/Rusty 3158(39.3%)</td>
+<td>与标签统计一致</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>验证集</td>
+<td>494 幅 / 1314 实例（Dent 587/Hole 177/Rusty 550）</td>
+<td>实测一致</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>test_result.csv</td>
+<td>931 框，Dent 463/Hole 131/Rusty 337，六列格式</td>
+<td>实测一致（931 行、463/131/337、列名正确）</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>基线最优</td>
+<td>mAP50=0.395 / mAP50-95=0.190</td>
+<td>ep90(0.3949)/ep99(0.1901)，跨轮次取优</td>
+<td><span class="badge warn">口径注意</span></td>
+</tr>
+<tr class="odd">
+<td>改进最优</td>
+<td>0.413 / 0.212（P 0.601/R 0.414）</td>
+<td>ep139 全部一致</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>最终模型</td>
+<td>摘要/表7-3：0.405/0.205（P 0.550/R 0.412）；表8-1：0.403/0.204</td>
+<td>ep132 mAP50=0.4048、ep130 mAP50-95=0.20481、ep132 P 0.5498/R 0.4123；独立评估 0.4033/0.2045</td>
+<td><span class="badge warn">口径混用</span></td>
+</tr>
+<tr class="odd">
+<td>逐类 AP50-95</td>
+<td>Dent 0.295 / Hole 0.190 / Rusty 0.129</td>
+<td>eval_final [0.2946/0.1897/0.1291]</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>Rusty 召回</td>
+<td>0.282</td>
+<td>0.2817</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>EVT 参数</td>
+<td>k=3.064、λ=0.701、τ<em>=0.1、s</em>≈0.34</td>
+<td>k=3.0636、λ=0.7006、τ=0.1、s*=0.3361</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>判别统计</td>
+<td>352 有缺陷 / 61 无缺陷</td>
+<td>evt_results 实测 352/61</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>分离度</td>
+<td>正 0.628 vs 负 0.077</td>
+<td>0.6281 / 0.0767</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>AUC / 阈值点</td>
+<td>0.972；TPR 85.2% / FPR 5.3%</td>
+<td>0.9717；0.8522 / 0.0533（32/600）</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>表6-2 四方案</td>
+<td>99.8%/70.8%、91.7%/9.2%、85.0%/5.3%、85.2%/5.3%</td>
+<td>evt_pseudo_neg 实测一致</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>负样本比例</td>
+<td>300/600/900 → 0.206/0.205/0.202，k=2.879/3.064/2.974</td>
+<td>results.csv 0.20569/0.20481/0.20156</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>P2 头</td>
+<td>整体 0.209；Hole 0.190→0.210(+0.021)，R=0.407→0.453</td>
+<td>p2 0.20902；Hole 0.21031、R 0.45337</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>TTA</td>
+<td>0.204→0.215(+0.011)</td>
+<td>tta 0.21526</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>WD-Focal</td>
+<td>0.103 vs 基线 0.205；Hole/Dent 0.64→1.15</td>
+<td>v2 0.10287；比值 1.153</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>Rusty 加权</td>
+<td>整体 0.171；Rusty 0.129→0.114</td>
+<td>0.17137；0.1144</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>鲁棒性表8-2</td>
+<td>六类扰动 mAP50-95：0.086/0.023/0.004/0.200/0.190/0.204/0.158</td>
+<td>robustness_results.json 一致</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="even">
+<td>效率表8-3</td>
+<td>11.13M / 28.4 GFLOPs / 8.87ms / 113FPS</td>
+<td>论文自测一致</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+<tr class="odd">
+<td>环境版本</td>
+<td>Python 3.13 / PyTorch 2.13 / Ultralytics 8.4.110</td>
+<td>3.13.7 / 2.13.0+cu126 / 8.4.110</td>
+<td><span class="badge ok">合格</span></td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>注：标“口径注意/口径混用”的项为建议整改项，非数据造假；所有数值均可由 runs/ 与 results/ 下的原始文件复现。</p>
+</blockquote>
+<hr />
+<h2 id="六整改执行记录2026-08-21">六、整改执行记录（2026-08-21）</h2>
+<p>论文已按本报告整改并重新编译：<strong>main.pdf 87 页，verify_pdf 全绿（??=0、16 图、附录代码渲染正常）</strong>。</p>
+<div class="card"><table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>整改项</th>
+<th>状态</th>
+<th>执行说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>P0-2 指标口径统一</td>
+<td>已完成</td>
+<td>摘要/表7-3/8.2 统一为训练最优（ep130）mAP@0.5=0.403、mAP@0.5:0.95=0.205（P=0.564/R=0.407），独立复测 0.403/0.204 互注；表7-3 基线行按 ep99 单轮（0.393/0.190/P 0.546/R 0.402），表下新增口径注释；8.2“一致”改为“基本一致（mAP@0.5:0.95 差异仅约 0.001）”</td>
+</tr>
+<tr class="even">
+<td>P1-2 灵敏度分析</td>
+<td>已完成</td>
+<td>第 8 节新增“8.5 灵敏度分析”与表8-2：实测 τ∈{0.05,0.08,0.10,0.12,0.15,0.20} 的等价置信度/TPR/FPR，τ*=0.1 位于稳健区间中部（τ∈[0.08,0.15] 时 TPR 81.0%~86.6%、FPR 3.7%~6.5%）；新增脚本 evt_tau_sensitivity.py（附录 A.11，同步 src 与论文/code），结果存 results/evt_tau_sensitivity.json；原 8.5~8.8 顺延为 8.6~8.9</td>
+</tr>
+<tr class="odd">
+<td>P2-1 赛题提示2</td>
+<td>已完成</td>
+<td>8.1 补充“验证集每幅图像破损标注按严重程度最多取 4 个、评估按给定标注进行”说明</td>
+</tr>
+<tr class="even">
+<td>P2-2 表述微调</td>
+<td>已完成</td>
+<td>“衰减不超过 0.014”→“最大衰减约 0.014（亮度 -30 时为 0.0142）”（摘要与 8.6 同步）；“值得注意的是”→“需要指出的是”；关键词 6→5（删“多维度评估”）</td>
+</tr>
+<tr class="odd">
+<td>P0-1 AI 使用报告</td>
+<td>草稿已建</td>
+<td>AI使用报告（草稿）.md 已生成（如实描述 AI 使用边界），需队伍核对后按组委会格式提交</td>
+</tr>
+<tr class="even">
+<td>P1-1 摘要字数</td>
+<td>已完成</td>
+<td>按官方 800–1000 字要求压缩：去空白约 920 字（PDF 实测 923），保留三个问题的量化结果；摘要仍单独一页、不跨页，关键词 5 个</td>
+</tr>
+</tbody>
+</table></div>
+<p>整改后复检：论文中“0.405/0.395/0.550/0.412、衰减不超过、值得注意的是”均已清零；表8-2 六个数值点与 results/evt_tau_sensitivity.json 完全一致；“0.403/0.204 与 0.403/0.205”两口径均已互注说明。</p>
+<hr />
+<p><em>本报告由 AI 自查流程自动生成，全部结论基于论文 PDF 与项目实验文件的逐项比对；涉及 AI 合规的“待核实”项需结合组委会规则与人工判断最终确认。</em></p>
+
+</div>
+</body>
+</html>

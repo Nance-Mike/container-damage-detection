@@ -1,0 +1,73 @@
+% ==================== AI 工具使用详情 ====================
+% 依据《全国大学生数学建模竞赛人工智能工具使用规定（2026年试行）》第四条编制。
+% 本文档为支撑材料，不包含参赛者身份、学校及赛区信息。
+\documentclass[12pt,a4paper]{ctexart}
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\setCJKmainfont{SimSun}
+\setCJKsansfont{SimHei}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\zihao{5}\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\linespread{1.35}
+
+\begin{document}
+
+\begin{center}
+  {\zihao{3}\heiti AI 工具使用详情}
+\end{center}
+
+\vspace{1.2em}
+
+\noindent{\heiti\zihao{4} 一、AI 工具名称和版本}
+
+\zihao{-4}
+本参赛队在竞赛过程中使用了以下 AI 工具：
+\begin{enumerate}[leftmargin=2em,itemsep=2pt]
+  \item DeepSeek-V4-Flash（大语言模型，用于代码编写与调试、实验编排与记录、论文排版建议与文字润色，2026 年 8 月使用）；
+  \item AI 文本润色与 LaTeX 排版辅助工具（用于文字表达优化与论文排版建议）。
+\end{enumerate}
+
+\vspace{0.8em}
+\noindent{\heiti\zihao{4} 二、具体使用目的与环节}
+
+AI 工具主要用于以下环节：
+\begin{enumerate}[leftmargin=2em,itemsep=2pt]
+  \item \textbf{代码编写与调试}：数据预处理、YOLOv8 训练与评估、EVT 极值判别、鲁棒性扰动测试等脚本的编写、参数化改造与排错（对应支撑材料中 \texttt{src/} 目录下的 11 个 Python 脚本）；
+  \item \textbf{实验编排与结果记录}：消融实验、负样本比例实验、WD-Focal 损失、Rusty 类加权、P2 检测头与 TTA 等实验的配置生成、结果汇总与记录；
+  \item \textbf{论文排版}：LaTeX 源码结构组织、图表编号、参考文献格式、AI 工具使用声明与支撑材料文件列表的排版；
+  \item \textbf{文字撰写与润色}：摘要与正文初稿的辅助起草和语句润色。
+\end{enumerate}
+
+\noindent\textbf{未使用的环节}：本文核心建模思路（“检测—判别”两阶段 EVT 框架、负样本构造策略、六维评估体系）由参赛队员设计并论证，AI 未参与核心建模决策；论文全部数据与结果来自赛题数据集与本地 GPU 实测，未使用 AI 生成或虚构数据。
+
+\vspace{0.8em}
+\noindent{\heiti\zihao{4} 三、主要提示方式与使用过程说明}
+
+以下为使用过程中的典型交互示例（节选）：
+\begin{enumerate}[leftmargin=2em,itemsep=4pt]
+  \item \textbf{代码调试示例}：提示“请将 \texttt{src/train\_yolo.py} 的命令行接口扩展为支持 \texttt{--loss wd\_focal}、\texttt{--copy-paste}、\texttt{--resume} 等参数，并保持原有调用方式不变”。AI 给出修改建议后，队员逐行审阅并在本地 GPU 上运行验证。
+  \item \textbf{实验记录示例}：提示“汇总 \texttt{runs/} 下各实验的 \texttt{results.csv} 与 \texttt{val\_summary.json}，生成指标对照表”。AI 输出的汇总表经队员与训练日志逐项核对后方才采用。
+  \item \textbf{论文排版示例}：提示“按国赛论文格式规范检查 \texttt{main.tex} 的页边距、摘要页、图表编号与参考文献格式”。AI 给出修改清单，队员确认后应用。
+\end{enumerate}
+
+\vspace{0.8em}
+\noindent{\heiti\zihao{4} 四、对 AI 输出的采纳、人工修改和核验的主要情况}
+
+\begin{enumerate}[leftmargin=2em,itemsep=4pt]
+  \item \textbf{代码}：AI 辅助生成或修改的代码均经队员逐行审查并实际运行；训练超参数、数据集划分、随机种子（seed=42）与评估口径均由队员确定。
+  \item \textbf{实验数据}：论文中全部数值（mAP、AUC、EVT 参数、判别统计、鲁棒性与效率指标等）均来自 \texttt{runs/}、\texttt{results/} 下的实测记录，队员逐项核验后写入论文；WD-Focal 与 Rusty 类加权等负结果亦如实记录。
+  \item \textbf{文字}：AI 起草的文字经队员逐段修改与核实，所有结论以实验记录为准；18 篇参考文献均由队员人工核查真实性。
+  \item \textbf{排版}：最终版式由队员审定，AI 仅协助机械性排版与格式检查。
+  \item 除语言润色外，AI 参与生成的每一部分内容均已由队员进行人工审查与核实。
+\end{enumerate}
+
+\vspace{1em}
+\noindent{\zihao{-5} 注：本说明按《全国大学生数学建模竞赛人工智能工具使用规定（2026年试行）》第四条要求编制，作为支撑材料随论文提交；按竞赛要求，本说明中不含任何可识别参赛者身份、学校及赛区的信息。}
+
+\end{document}

@@ -22,8 +22,12 @@ An intelligent container damage detection system that combines a **YOLOv8 detect
 - **Post-competition experiments** (see `results/实验记录.md`): WD-Focal end-to-end and Rusty class
   weighting are documented negative results; a P2 head lifts Hole AP by +0.021; TTA adds +0.011
   mAP with zero retraining.
-- **Publication-ready paper**: 84-page LaTeX paper (Chinese) meeting CUMCM national-first-prize
-  typography; `论文/main.pdf` is the compiled deliverable.
+- **Publication-ready paper**: 88-page LaTeX paper (Chinese) meeting CUMCM national-first-prize
+  typography; `论文/main.pdf` is the compiled deliverable, with a Word mirror
+  (`论文/main.docx`), an AI tool declaration, and an appendix A.12 supporting-materials list.
+- **Submission packaging**: `pack_submission.py` assembles the four required categories
+  (Word paper, PDF paper, full source tree, AI usage details) into `20262026104.zip`;
+  `AI工具使用详情.pdf` documents the AI tools used (DeepSeek-V4-Flash).
 
 ## Repository layout
 
@@ -78,9 +82,11 @@ Rusty recall (0.282) is the main bottleneck (large low-texture regions vs. backg
 
 ## Deliverables
 
-- `test_result.csv` — final test-set predictions (image_id currently includes the `.jpg`
-  suffix; pending committee confirmation before submission)
-- `论文/main.pdf` — final competition paper
+- `test_result.csv` — final test-set predictions (image_id 不含 `.jpg` 后缀，
+  2026-08-21 已按提交要求统一)
+- `论文/main.pdf` / `论文/main.docx` — final competition paper (PDF / Word)
+- `AI工具使用详情.pdf` — AI 工具使用说明（支撑材料）
+- `pack_submission.py` — 电子版材料归集与打包脚本（输出 `20262026104.zip`）
 
 ## Notes
 

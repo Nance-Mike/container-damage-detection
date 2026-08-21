@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026数学建模国赛 AI 全自动自查报告 · 选题D</title>
+<style>
+  :root{
+    --ok:#1a7f37; --ok-bg:#e6f4ea;
+    --warn:#b54708; --warn-bg:#fff4e5;
+    --info:#1d5fb5; --info-bg:#e8f0fb;
+    --bad:#b42318; --bad-bg:#fee4e2;
+    --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --card:#ffffff; --page:#f3f4f6; --accent:#0f4c81; --accent2:#1e88e5;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:0; background:var(--page);
+    color:var(--ink); font-family:"Microsoft YaHei","PingFang SC","SimSun",sans-serif;
+    font-size:14px; line-height:1.7;
+  }
+  .page{max-width:1000px; margin:0 auto; padding:28px 20px 60px;}
+  .hero{
+    background:linear-gradient(135deg,#0f4c81 0%,#1e88e5 100%);
+    color:#fff; border-radius:16px; padding:30px 32px; margin-bottom:24px;
+    box-shadow:0 8px 24px rgba(15,76,129,.22);
+  }
+  .hero .tag{display:inline-block; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35);
+    padding:2px 12px; border-radius:999px; font-size:12px; letter-spacing:1px; margin-bottom:10px;}
+  .hero h1{margin:0 0 8px; font-size:26px; line-height:1.35;}
+  .hero p{margin:2px 0; font-size:13px; color:rgba(255,255,255,.9);}
+  .stats{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:24px;}
+  .stat{flex:1; min-width:140px; background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .stat .num{font-size:30px; font-weight:700; line-height:1.2;}
+  .stat .lbl{font-size:12px; color:var(--muted); margin-top:4px;}
+  .stat.ok .num{color:var(--ok);} .stat.warn .num{color:var(--warn);} .stat.info .num{color:var(--info);}
+  .stat.total .num{color:var(--accent);}
+  h2{font-size:20px; color:var(--accent); border-left:5px solid var(--accent2);
+    padding-left:12px; margin:34px 0 14px;}
+  h3{font-size:16px; color:#111827; margin:22px 0 10px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:18px 20px; margin:14px 0; box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .note{background:#eef6ff; border-left:4px solid var(--accent2); padding:10px 14px; border-radius:0 8px 8px 0;
+    font-size:13px; color:#334155; margin:12px 0;}
+  table{border-collapse:collapse; width:100%; margin:12px 0; background:#fff; font-size:13px;}
+  th{background:#0f4c81; color:#fff; font-weight:600; padding:9px 10px; text-align:left; border:1px solid #0f4c81;}
+  td{border:1px solid var(--line); padding:8px 10px; vertical-align:top;}
+  tr:nth-child(even) td{background:#f8fafc;}
+  .badge{display:inline-block; padding:1px 10px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap;}
+  .badge.ok{background:var(--ok-bg); color:var(--ok);}
+  .badge.warn{background:var(--warn-bg); color:var(--warn);}
+  .badge.info{background:var(--info-bg); color:var(--info);}
+  .badge.bad{background:var(--bad-bg); color:var(--bad);}
+  .chip{display:inline-block; padding:1px 10px; border-radius:999px; font-size:12px; font-weight:600;}
+  .chip.high{background:var(--bad-bg); color:var(--bad);}
+  .chip.mid{background:var(--warn-bg); color:var(--warn);}
+  .chip.low{background:var(--ok-bg); color:var(--ok);}
+  blockquote{background:#f9fafb; border-left:4px solid #9ca3af; margin:12px 0; padding:8px 14px; color:#4b5563; font-size:13px;}
+  hr{border:none; border-top:1px solid var(--line); margin:24px 0;}
+  code{background:#eef2f6; padding:1px 6px; border-radius:4px; font-size:12px;}
+  @media print{
+    body{background:#fff; font-size:12px;}
+    .page{max-width:none; padding:0;}
+    .hero{border-radius:0; box-shadow:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .stat,.card{box-shadow:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    th,td,.badge,.chip{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    h2{page-break-after:avoid;} table,tr{page-break-inside:avoid;}
+    a{color:inherit; text-decoration:none;}
+  }
+  @page{size:A4; margin:14mm 12mm;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hero">
+    <span class="tag">2026 · 高教社杯全国大学生数学建模竞赛</span>
+    <h1>AI 全自动自查报告（标准版）</h1>
+    <p>论文：基于 YOLOv8 与极值理论的集装箱破损智能检测模型（选题D）</p>
+    <p>自查日期：2026-08-21 ｜ 输入：论文 PDF（85 页）+ 赛题 + 数据说明 + 自查表</p>
+  </div>
+  <div class="stats">
+    <div class="stat total"><div class="num">26</div><div class="lbl">核查条目</div></div>
+    <div class="stat ok"><div class="num">18</div><div class="lbl">合格</div></div>
+    <div class="stat warn"><div class="num">5</div><div class="lbl">存在问题</div></div>
+    <div class="stat info"><div class="num">3</div><div class="lbl">待核实</div></div>
+  </div>
+  <!--BODY-->
+</div>
+</body>
+</html>

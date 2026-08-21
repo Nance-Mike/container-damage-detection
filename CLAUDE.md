@@ -137,6 +137,11 @@ Training outputs and evaluation results are stored in:
 
 The project includes extensive ablation studies on negative samples, perturbation robustness, and loss function comparisons.
 
-Current state (2026-08-16): all planned experiments are finished and the final model remains
-`improved_with_neg` (mAP50-95 ≈ 0.205, EVT k = 3.064); the 84-page paper passes `verify_pdf`
-with 18 references, and the repository is synced with GitHub `origin/main`.
+Current state (2026-08-21): all planned experiments are finished and the final model remains
+`improved_with_neg` (mAP50-95 ≈ 0.205, EVT k = 3.064); the 88-page paper passes `verify_pdf`
+(18 references, 16 figures, appendix code rendered) and includes an AI tool declaration plus
+appendix A.12 supporting-materials list. Submission deliverables are generated:
+`论文/main.docx` (Word version), `AI工具使用详情.pdf` (AI usage details, DeepSeek-V4-Flash),
+and `pack_submission.py` (packages the four required categories into `20262026104.zip`).
+`test_result.csv` uses extension-free `image_id` (2026-08-21 submission requirement).
+The packaging-round changes are committed to the working tree but not yet pushed to GitHub.

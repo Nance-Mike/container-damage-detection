@@ -12,8 +12,9 @@
 }
 
 \section{主要源程序}
+\label{sec:src_programs}
 
-本论文使用的全部源程序如下，运行环境为 Python 3.13 + PyTorch 2.13 + Ultralytics 8.4.110。其中 \texttt{preprocess.py}、\texttt{train\_yolo.py}、\texttt{evt\_classifier.py} 分别对应数据预处理、模型训练推理与问题一判别，其结果直接支撑正文；\texttt{eda.py} 用于探索性分析；\texttt{wd\_focal\_loss.py} 为附录 C 所述 WD-Focal Loss 的实现；\texttt{evaluate.py} 为多维度评估工具框架；\texttt{build\_neg\_variants.py}、\texttt{eval\_model.py}、\texttt{robustness\_eval.py}、\texttt{run\_evt\_probe.py} 分别为负样本比例实验的数据集构造、模型独立评估、鲁棒性扰动测试与 EVT 伪负样本校准脚本。
+本论文使用的全部源程序如下，运行环境为 Python 3.13 + PyTorch 2.13 + Ultralytics 8.4.110。其中 \texttt{preprocess.py}、\texttt{train\_yolo.py}、\texttt{evt\_classifier.py} 分别对应数据预处理、模型训练推理与问题一判别，其结果直接支撑正文；\texttt{eda.py} 用于探索性分析；\texttt{wd\_focal\_loss.py} 为附录 C 所述 WD-Focal Loss 的实现；\texttt{evaluate.py} 为多维度评估工具框架；\texttt{build\_neg\_variants.py}、\texttt{eval\_model.py}、\texttt{robustness\_eval.py}、\texttt{run\_evt\_probe.py}、\texttt{evt\_tau\_sensitivity.py} 分别为负样本比例实验的数据集构造、模型独立评估、鲁棒性扰动测试、EVT 伪负样本校准与问题一判别阈值灵敏度分析脚本。
 
 \subsection{数据预处理与负样本构造（preprocess.py）}
 \lstinputlisting{code/preprocess.py}
@@ -44,6 +45,19 @@
 
 \subsection{EVT 伪负样本判别校准（run\_evt\_probe.py）}
 \lstinputlisting{code/run_evt_probe.py}
+
+\subsection{EVT 判别阈值灵敏度分析（evt\_tau\_sensitivity.py）}
+\lstinputlisting{code/evt_tau_sensitivity.py}
+
+\subsection{支撑材料文件列表}
+
+随电子版论文一并提交的支撑材料如下（均与论文正文同一压缩包内，且不包含承诺书、编号专用页及任何可识别参赛者身份的信息）：
+\begin{enumerate}
+  \item 参赛论文电子版：\texttt{main.pdf}（PDF 版，正文以该版本为准）与 \texttt{main.docx}（Word 版，由同一 LaTeX 源码生成）；
+  \item 全部程序源码：\texttt{src/} 目录下的 11 个 Python 脚本（即本附录 \ref{sec:src_programs} 小节 A.1--A.11 所列，\texttt{wd\_focal\_loss.py} 对应附录 C 的 WD-Focal 实现），以及 \texttt{论文/scripts/}、论文构建与配图辅助脚本，均保持原目录结构；
+  \item AI 工具使用详情：\texttt{AI工具使用详情.pdf}（按《全国大学生数学建模竞赛人工智能工具使用规定（2026年试行）》第四条要求编制）；
+  \item 问题二检测结果：\texttt{test\_result.csv}（931 个检测框，六列格式为 image\_id, class\_id, x\_center, y\_center, width, height，坐标为归一化值）。
+\end{enumerate}
 
 \section{极值理论判别的推导补充}
 
