@@ -1,75 +1,69 @@
 # Container Damage Detection with YOLOv8 and Extreme Value Theory
 
-2026 CUMCM (China Undergraduate Mathematical Modeling Contest, Higher Education Cup) — Topic D.
-An intelligent container damage detection system that combines a **YOLOv8 detector** with an
-**Extreme Value Theory (EVT) open-set classifier** for three defect classes:
+[中文文档](./README.zh-CN.md) | English
 
-- `Dent` (凹陷) — class 0
-- `Hole` (破洞) — class 1
-- `Rusty` (锈蚀) — class 2
+2026 CUMCM (China Undergraduate Mathematical Modeling Contest, Higher Education Cup) — Topic D.
+This repository provides an intelligent container-damage detection pipeline that combines a
+**YOLOv8 detector** with an **Extreme Value Theory (EVT) open-set classifier**.
+
+Defect classes:
+
+- `Dent` (class 0)
+- `Hole` (class 1)
+- `Rusty` (class 2)
 
 ## Highlights
 
-- **One model, two problems**: the same detector drives both localization and image-level defect
-  judgment, keeping the statistics consistent across the paper.
-- **EVT open-set discrimination**: a Weibull model on the maximum detection confidence separates
-  damaged / undamaged images without large-scale negative samples; pseudo-negative calibration
-  reaches AUC ≈ 0.972 (threshold 0.34 → TPR 85.2%, FPR 5.3%).
-- **Honest ablation**: the +0.022 mAP gain comes from the backbone upgrade (YOLOv8n → v8s);
-  Copy-Paste is a no-op on this data (box-only labels, no mask segments).
-- **Negative-sample grid (300/600/900)**: 600 negatives is the sweet spot — highest EVT separation
-  (Weibull k = 3.064) with negligible mAP cost.
-- **Post-competition experiments** (see `results/实验记录.md`): WD-Focal end-to-end and Rusty class
-  weighting are documented negative results; a P2 head lifts Hole AP by +0.021; TTA adds +0.011
-  mAP with zero retraining.
-- **Publication-ready paper**: 88-page LaTeX paper (Chinese) meeting CUMCM national-first-prize
-  typography; `论文/main.pdf` is the compiled deliverable, with a Word mirror
-  (`论文/main.docx`), an AI tool declaration, and an appendix A.12 supporting-materials list.
-- **Submission packaging**: `pack_submission.py` assembles the four required categories
-  (Word paper, PDF paper, full source tree, AI usage details) into `20262026104.zip`;
-  `AI工具使用详情.pdf` documents the AI tools used (DeepSeek-V4-Flash).
+- Uses one detection model for both localization and image-level defect judgment.
+- Uses EVT (Weibull fit on max confidence) to separate damaged vs. undamaged images.
+- Includes reproducible post-competition ablation and robustness experiments.
+- Provides complete paper artifacts: LaTeX source, PDF, Word version, and packaging script.
 
-## Repository layout
+## Repository Layout
 
-```
-src/       Training, evaluation, EVT and robustness scripts (paper appendix mirrors this)
-论文/      LaTeX paper source: main.tex, sections/, refs.tex, figures/, code/, build.ps1
-results/   Evaluation results, EVT analysis, robustness metrics, experiment log
-优化建议与评价/  Feasibility analysis and audit evidence (Chinese)
-归档/      Archived planning documents
-data/, 数据集3713/, runs/   Datasets and training artifacts (tracked in this repo)
+```text
+src/                  Training, evaluation, EVT, and robustness scripts
+论文/                 LaTeX paper source and build scripts
+results/              Evaluation outputs, EVT analysis, and experiment logs
+data/, 数据集3713/    Processed/original dataset assets
+runs/                 Training artifacts and checkpoints
+pack_submission.py    Submission packaging script
 ```
 
-## Quick start
+## Environment
 
-Python 3.13（本机解释器 `E:\python2025\python.exe`）; key dependencies:
-`ultralytics==8.4.110`, `torch==2.13.0`. Set `YOLO_CONFIG_DIR` to a writable
-directory if Ultralytics settings fail.
+- Python 3.13
+- Key dependencies: `ultralytics==8.4.110`, `torch==2.13.0`
+- If Ultralytics config fails, set `YOLO_CONFIG_DIR` to a writable directory.
+
+## Quick Start
 
 ```bash
-# Train baseline / improved / final-style models
+# 1) Train baseline model
 python src/train_yolo.py --mode baseline --model yolov8n.pt --name baseline
+
+# 2) Train improved/final-style model
 python src/train_yolo.py --mode improved --model yolov8s.pt --copy-paste 0.5 --epochs 150
 
-# Evaluate a model on the fixed 494-image validation set
+# 3) Evaluate on validation set
 python src/eval_model.py --weights runs/detect/improved_with_neg/weights/best.pt
 
-# EVT pseudo-negative calibration (read-only, ~30 s on GPU)
+# 4) EVT pseudo-negative calibration
 python src/run_evt_probe.py
 
-# Robustness perturbation test (noise / brightness / blur)
+# 5) Robustness evaluation (noise/brightness/blur)
 python src/robustness_eval.py
 ```
 
-Build the paper (MiKTeX / TeX Live with XeLaTeX):
+## Build the Paper
 
 ```powershell
 cd 论文
-.\build.ps1                       # two XeLaTeX passes
-python scripts/verify_pdf.py main.pdf   # quality gate
+.\build.ps1
+python scripts/verify_pdf.py main.pdf
 ```
 
-## Key results (validation, 494 images)
+## Key Results (Validation, 494 Images)
 
 | Model | mAP@0.5 | mAP@0.5:0.95 |
 | --- | --- | --- |
@@ -77,22 +71,15 @@ python scripts/verify_pdf.py main.pdf   # quality gate
 | Improved (YOLOv8s + Copy-Paste) | 0.413 | 0.212 |
 | Final (Improved + 600 negatives) | 0.405 | 0.205 |
 
-Per-class AP@0.5:0.95 of the final model: Dent 0.295 / Hole 0.190 / Rusty 0.129;
-Rusty recall (0.282) is the main bottleneck (large low-texture regions vs. background).
-
 ## Deliverables
 
-- `test_result.csv` — final test-set predictions (image_id 不含 `.jpg` 后缀，
-  2026-08-21 已按提交要求统一)
-- `论文/main.pdf` / `论文/main.docx` — final competition paper (PDF / Word)
-- `AI工具使用详情.pdf` — AI 工具使用说明（支撑材料）
-- `pack_submission.py` — 电子版材料归集与打包脚本（输出 `20262026104.zip`）
+- `test_result.csv` — final test-set predictions
+- `论文/main.pdf` / `论文/main.docx` — final paper (PDF/Word)
+- `AI工具使用详情.pdf` — AI usage details
+- `pack_submission.py` — packages required submission files into `20262026104.zip`
 
 ## Notes
 
-- All experiments use `seed=42`; training outputs are reproducible from `runs/*/args.yaml`.
-- The authoritative source is `src/`; `论文/code/` holds copies for the paper appendix
-  (regenerated by `论文/prep_figures.py`).
-- Figure styling: `论文/restyle_figures.py` (data charts), `论文/restyle_montages.py`
-  (sample montages), `论文/regenerate_weibull.py` (Weibull, needs GPU inference);
-  English AI-image prompts are in `论文/配图提示词.md`.
+- Authoritative source code is under `src/`.
+- `论文/code/` contains appendix copies of source files for the paper.
+- Detailed experiment records are in `results/实验记录.md`.
