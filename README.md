@@ -2,6 +2,27 @@
 
 [中文文档](./README.zh-CN.md) | English
 
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?logo=pytorch&logoColor=white)
+![CUDA](https://img.shields.io/badge/CUDA-Accelerated-76B900?logo=nvidia&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-Supported-005CED?logo=onnx&logoColor=white)
+![TensorRT](https://img.shields.io/badge/TensorRT-Optimized-76B900?logo=nvidia&logoColor=white)
+![Task](https://img.shields.io/badge/Task-Container%20Damage%20Detection-0A66C2)
+![Model](https://img.shields.io/badge/Model-MSF--CNN%20%2B%20YOLO-6f42c1)
+![Loss](https://img.shields.io/badge/Loss-WD--Focal-8A2BE2)
+![Defect Classes](https://img.shields.io/badge/Defect%20Classes-5-2ea44f)
+![Docs](https://img.shields.io/badge/Docs-English%20%7C%20中文-orange)
+![GitHub stars](https://img.shields.io/github/stars/Nance-Mike/container-damage-detection?style=flat)
+![GitHub forks](https://img.shields.io/github/forks/Nance-Mike/container-damage-detection?style=flat)
+![GitHub issues](https://img.shields.io/github/issues/Nance-Mike/container-damage-detection)
+![Last commit](https://img.shields.io/github/last-commit/Nance-Mike/container-damage-detection)
+![Repo size](https://img.shields.io/github/repo-size/Nance-Mike/container-damage-detection)
+[![GitHub Discussions](https://img.shields.io/badge/Discussions-Join-1f883d?logo=github)](https://github.com/Nance-Mike/container-damage-detection/discussions)
+[![GitHub Issues](https://img.shields.io/badge/Issues-Feedback-blue?logo=github)](https://github.com/Nance-Mike/container-damage-detection/issues)
+![CI](https://img.shields.io/github/actions/workflow/status/Nance-Mike/container-damage-detection/ci.yml?branch=main&label=CI)
+![Release](https://img.shields.io/github/v/release/Nance-Mike/container-damage-detection?display_name=tag)
+
 2026 CUMCM (China Undergraduate Mathematical Modeling Contest, Higher Education Cup) — Topic D.
 This repository provides an intelligent container-damage detection pipeline that combines a
 **YOLOv8 detector** with an **Extreme Value Theory (EVT) open-set classifier**.
